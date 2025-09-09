@@ -67,3 +67,12 @@ export interface Doc {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface Prompt {
+  id: string;
+  name: string;
+  description: string;
+  promptText: string;
+  createdAt: Date;
+  updatedAt: Date;
+}

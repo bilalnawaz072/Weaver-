@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc } from './types';
+import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt } from './types';
 import { TaskTable } from './components/TaskTable';
 import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
@@ -12,7 +12,8 @@ import { ProjectSettingsModal } from './components/ProjectSettingsModal';
 import { DocEditor } from './components/DocEditor';
 import { TimelineView } from './components/TimelineView';
 import { CalendarView } from './components/CalendarView';
-
+import { FoundryView } from './components/foundry/FoundryView';
+import { GoogleGenAI } from "@google/genai";
 
 const initialSpaces: Space[] = [
     { id: 'space-1', name: 'Product Development', createdAt: new Date(), updatedAt: new Date() },
@@ -53,6 +54,12 @@ const initialCustomFieldValues: CustomFieldValue[] = [
     { id: 'cfv-3', taskId: '6', fieldDefinitionId: 'cfd-1', value: 'High' },
     { id: 'cfv-4', taskId: '7', fieldDefinitionId: 'cfd-1', value: 'Medium' },
 ];
+
+const initialPrompts: Prompt[] = [
+    { id: 'p-1', name: 'Summarize Text', description: 'A simple prompt to summarize a piece of text.', promptText: 'Please summarize the following text in a single paragraph:\n\n{{text_to_summarize}}', createdAt: new Date(), updatedAt: new Date() },
+    { id: 'p-2', name: 'Generate Blog Post Ideas', description: 'Creates a list of blog post ideas based on a topic.', promptText: 'Generate a list of 5 creative blog post titles about the topic of {{topic}}.', createdAt: new Date(), updatedAt: new Date() },
+];
+
 
 const getUpdatedTasksWithPropagation = (
     tasks: Task[], 
@@ -106,7 +113,7 @@ const getUpdatedTasksWithPropagation = (
 };
 
 const App: React.FC = () => {
-  // State
+  // Workspace State
   const [spaces, setSpaces] = useState<Space[]>(initialSpaces);
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -122,6 +129,13 @@ const App: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<{ key: TaskSortKey | null; direction: 'ascending' | 'descending' }>({ key: 'createdAt', direction: 'descending' });
   const [visibleTableColumns, setVisibleTableColumns] = useState<string[]>(['title', 'status', 'startDate', 'dueDate', 'createdAt']);
   
+  // Foundry State
+  const [prompts, setPrompts] = useState<Prompt[]>(initialPrompts);
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+
+  // Global App State
+  const [activeMainView, setActiveMainView] = useState<'workspace' | 'foundry'>('workspace');
+  
   // Modal State
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
@@ -132,7 +146,7 @@ const App: React.FC = () => {
   const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false);
   const [spaceToEdit, setSpaceToEdit] = useState<Space | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'space' | 'project' | 'task' | 'customField' | 'doc' } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'space' | 'project' | 'task' | 'customField' | 'doc' | 'prompt' } | null>(null);
   const [isProjectSettingsModalOpen, setIsProjectSettingsModalOpen] = useState(false);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -140,12 +154,18 @@ const App: React.FC = () => {
 
   // Effects
   useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) {
+    if (activeMainView === 'workspace' && !selectedProjectId && projects.length > 0) {
         setSelectedProjectId(projects[0].id);
         setActiveContentType('tasks');
         setActiveDocId(null);
     }
-  }, [projects, selectedProjectId]);
+  }, [projects, selectedProjectId, activeMainView]);
+  
+  useEffect(() => {
+    if (activeMainView === 'foundry' && !selectedPromptId && prompts.length > 0) {
+        setSelectedPromptId(prompts[0].id);
+    }
+  }, [prompts, selectedPromptId, activeMainView]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -161,7 +181,8 @@ const App: React.FC = () => {
   const selectedProject = useMemo(() => projects.find(p => p.id === selectedProjectId), [projects, selectedProjectId]);
   const selectedSpace = useMemo(() => spaces.find(s => s.id === selectedProject?.spaceId), [spaces, selectedProject]);
   const activeDoc = useMemo(() => docs.find(d => d.id === activeDocId), [docs, activeDocId]);
-  
+  const selectedPrompt = useMemo(() => prompts.find(p => p.id === selectedPromptId), [prompts, selectedPromptId]);
+
   const tasksForSelectedProject = useMemo(() => {
     if (!selectedProjectId) return [];
     return tasks.filter(task => task.projectId === selectedProjectId);
@@ -383,6 +404,55 @@ const App: React.FC = () => {
   };
   const handleDeleteCustomFieldDefinition = (id: string) => { setItemToDelete({ id, type: 'customField' }); setIsConfirmModalOpen(true); };
 
+  // Prompt Handlers (Foundry)
+  const handleCreatePrompt = () => {
+    const newPrompt: Prompt = {
+        id: crypto.randomUUID(),
+        name: 'New Untitled Prompt',
+        description: '',
+        promptText: 'Your prompt text with {{variables}} here.',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    };
+    setPrompts(prev => [newPrompt, ...prev]);
+    setSelectedPromptId(newPrompt.id);
+  };
+
+  const handleSavePrompt = (promptData: Omit<Prompt, 'createdAt' | 'updatedAt'>) => {
+    setPrompts(prev => prev.map(p => p.id === promptData.id ? { ...p, ...promptData, updatedAt: new Date() } : p));
+  };
+  
+  const handleDeletePrompt = (id: string) => { setItemToDelete({ id, type: 'prompt' }); setIsConfirmModalOpen(true); };
+
+  // "Model Hub" Service (Client-Side Implementation)
+  const handleRunPrompt = async (promptText: string, variables: { [key: string]: string }): Promise<string> => {
+      if (!process.env.API_KEY) {
+        return "ERROR: API_KEY environment variable not set. Please configure it to use the Foundry.";
+      }
+
+      let populatedPrompt = promptText;
+      for (const key in variables) {
+          const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+          populatedPrompt = populatedPrompt.replace(regex, variables[key]);
+      }
+
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: populatedPrompt,
+        });
+        return response.text;
+      } catch (error) {
+          console.error("Error calling Gemini API:", error);
+          if (error instanceof Error) {
+              return `API Error: ${error.message}`;
+          }
+          return "An unknown error occurred while contacting the AI model.";
+      }
+  };
+
+
   // Deletion Confirmation Handlers
   const closeConfirmModal = () => { setIsConfirmModalOpen(false); setItemToDelete(null); };
 
@@ -444,6 +514,11 @@ const App: React.FC = () => {
         setCustomFieldValues(prev => prev.filter(v => v.fieldDefinitionId !== id));
         setCustomFieldDefinitions(prev => prev.filter(d => d.id !== id));
         setVisibleTableColumns(cols => cols.filter(c => c !== id));
+    } else if (type === 'prompt') {
+        setPrompts(prev => prev.filter(p => p.id !== id));
+        if (selectedPromptId === id) {
+            setSelectedPromptId(prompts.length > 1 ? prompts.filter(p => p.id !== id)[0].id : null);
+        }
     }
 
     closeConfirmModal();
@@ -473,6 +548,10 @@ const App: React.FC = () => {
     if (type === 'customField') {
         const def = customFieldDefinitions.find(d => d.id === id);
         return { title: 'Delete Custom Field?', message: `Are you sure you want to delete the field "${def?.name}"? All data entered for this field on all tasks will be lost.` };
+    }
+    if (type === 'prompt') {
+        const prompt = prompts.find(p => p.id === id);
+        return { title: 'Delete Prompt?', message: `Are you sure you want to delete the prompt "${prompt?.name}"? This action cannot be undone.` };
     }
     return { title: '', message: '' };
   };
@@ -514,6 +593,107 @@ const App: React.FC = () => {
     }
   }
 
+  const renderMainContent = () => {
+    if (activeMainView === 'foundry') {
+        return (
+            <FoundryView
+                prompts={prompts}
+                selectedPrompt={selectedPrompt}
+                onSelectPrompt={setSelectedPromptId}
+                onCreatePrompt={handleCreatePrompt}
+                onSavePrompt={handleSavePrompt}
+                onDeletePrompt={handleDeletePrompt}
+                onRunPrompt={handleRunPrompt}
+            />
+        );
+    }
+
+    // Default to workspace view
+    return (
+        <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+        {selectedProject ? (
+          activeContentType === 'tasks' ? (
+              <>
+              <div className="flex-shrink-0">
+                  <div className="flex justify-between items-start">
+                  <div>
+                      <h2 className="text-gray-400 text-sm">{selectedSpace?.name || '...'}</h2>
+                      <div className="flex items-center gap-3">
+                      <h3 className="text-2xl font-bold text-white">{selectedProject.name}</h3>
+                      <button onClick={() => setIsProjectSettingsModalOpen(true)} className="text-gray-400 hover:text-white transition-colors" aria-label="Project Settings">
+                          <Cog6ToothIcon />
+                      </button>
+                      </div>
+                      <p className="text-gray-400 mt-1">{selectedProject.description}</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                      <div className="flex items-center bg-gray-800 p-1 rounded-lg">
+                        <button onClick={() => setActiveView('table')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'table' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'table'} aria-label="Table View" ><TableCellsIcon /></button>
+                        <button onClick={() => setActiveView('kanban')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'kanban' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'kanban'} aria-label="Kanban View" ><ViewColumnsIcon /></button>
+                        <button onClick={() => setActiveView('timeline')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'timeline' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'timeline'} aria-label="Timeline View" ><ChartBarIcon /></button>
+                        <button onClick={() => setActiveView('calendar')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'calendar'} aria-label="Calendar View" ><CalendarDaysIcon /></button>
+                      </div>
+                      <div className="relative">
+                          <button
+                              onClick={() => setIsCreateMenuOpen(prev => !prev)}
+                              className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed"
+                              disabled={!selectedProject}
+                              aria-haspopup="true"
+                              aria-expanded={isCreateMenuOpen}
+                          >
+                              <PlusIcon className="w-5 h-5" />
+                              <span>Create</span>
+                          </button>
+                          {isCreateMenuOpen && (
+                              <div ref={createMenuRef} className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20">
+                                  <ul className="p-2 space-y-1">
+                                      <li>
+                                          <button
+                                              onClick={() => { handleOpenCreateTaskModal(); setIsCreateMenuOpen(false); }}
+                                              className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors"
+                                          >
+                                              <TableCellsIcon className="w-4 h-4" />
+                                              <span>New Task</span>
+                                          </button>
+                                      </li>
+                                      <li>
+                                          <button
+                                              onClick={() => { if (selectedProjectId) { handleCreateDoc(selectedProjectId); } setIsCreateMenuOpen(false); }}
+                                              className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors"
+                                          >
+                                              <DocumentTextIcon className="w-4 h-4" />
+                                              <span>New Document</span>
+                                          </button>
+                                      </li>
+                                  </ul>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+                  </div>
+              </div>
+              {renderActiveView()}
+              </>
+          ) : activeDoc ? (
+              <DocEditor
+                  key={activeDoc.id}
+                  doc={activeDoc}
+                  onSave={handleSaveDoc}
+                  onDelete={handleDeleteDoc}
+               />
+          ) : null
+        ) : (
+          <div className="flex-grow flex items-center justify-center bg-gray-800/50 border border-gray-700 rounded-lg">
+              <div className="text-center">
+                  <h2 className="text-xl font-semibold text-white">No Project Selected</h2>
+                  <p className="text-gray-400 mt-2">Select a project from the sidebar, or create a new one to get started.</p>
+              </div>
+          </div>
+        )}
+      </main>
+    );
+  }
+
   return (
     <div className="h-screen bg-gray-900 text-gray-100 flex flex-col overflow-hidden">
       <header className="p-4 sm:p-6 lg:p-8 border-b border-gray-700/50">
@@ -530,8 +710,10 @@ const App: React.FC = () => {
             selectedProjectId={selectedProjectId}
             activeContentType={activeContentType}
             activeDocId={activeDocId}
+            activeMainView={activeMainView}
             onSelectProject={handleSelectProject}
             onSelectDoc={handleSelectDoc}
+            onSetActiveMainView={setActiveMainView}
             onCreateSpace={handleOpenCreateSpaceModal}
             onEditSpace={handleOpenEditSpaceModal}
             onDeleteSpace={handleDeleteSpace}
@@ -543,87 +725,7 @@ const App: React.FC = () => {
           />
         </aside>
 
-        <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
-          {selectedProject ? (
-            activeContentType === 'tasks' ? (
-                <>
-                <div className="flex-shrink-0">
-                    <div className="flex justify-between items-start">
-                    <div>
-                        <h2 className="text-gray-400 text-sm">{selectedSpace?.name || '...'}</h2>
-                        <div className="flex items-center gap-3">
-                        <h3 className="text-2xl font-bold text-white">{selectedProject.name}</h3>
-                        <button onClick={() => setIsProjectSettingsModalOpen(true)} className="text-gray-400 hover:text-white transition-colors" aria-label="Project Settings">
-                            <Cog6ToothIcon />
-                        </button>
-                        </div>
-                        <p className="text-gray-400 mt-1">{selectedProject.description}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center bg-gray-800 p-1 rounded-lg">
-                          <button onClick={() => setActiveView('table')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'table' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'table'} aria-label="Table View" ><TableCellsIcon /></button>
-                          <button onClick={() => setActiveView('kanban')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'kanban' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'kanban'} aria-label="Kanban View" ><ViewColumnsIcon /></button>
-                          <button onClick={() => setActiveView('timeline')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'timeline' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'timeline'} aria-label="Timeline View" ><ChartBarIcon /></button>
-                          <button onClick={() => setActiveView('calendar')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'calendar'} aria-label="Calendar View" ><CalendarDaysIcon /></button>
-                        </div>
-                        <div className="relative">
-                            <button
-                                onClick={() => setIsCreateMenuOpen(prev => !prev)}
-                                className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                                disabled={!selectedProject}
-                                aria-haspopup="true"
-                                aria-expanded={isCreateMenuOpen}
-                            >
-                                <PlusIcon className="w-5 h-5" />
-                                <span>Create</span>
-                            </button>
-                            {isCreateMenuOpen && (
-                                <div ref={createMenuRef} className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20">
-                                    <ul className="p-2 space-y-1">
-                                        <li>
-                                            <button
-                                                onClick={() => { handleOpenCreateTaskModal(); setIsCreateMenuOpen(false); }}
-                                                className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors"
-                                            >
-                                                <TableCellsIcon className="w-4 h-4" />
-                                                <span>New Task</span>
-                                            </button>
-                                        </li>
-                                        <li>
-                                            <button
-                                                onClick={() => { if (selectedProjectId) { handleCreateDoc(selectedProjectId); } setIsCreateMenuOpen(false); }}
-                                                className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors"
-                                            >
-                                                <DocumentTextIcon className="w-4 h-4" />
-                                                <span>New Document</span>
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    </div>
-                </div>
-                {renderActiveView()}
-                </>
-            ) : activeDoc ? (
-                <DocEditor
-                    key={activeDoc.id}
-                    doc={activeDoc}
-                    onSave={handleSaveDoc}
-                    onDelete={handleDeleteDoc}
-                 />
-            ) : null
-          ) : (
-            <div className="flex-grow flex items-center justify-center bg-gray-800/50 border border-gray-700 rounded-lg">
-                <div className="text-center">
-                    <h2 className="text-xl font-semibold text-white">No Project Selected</h2>
-                    <p className="text-gray-400 mt-2">Select a project from the sidebar, or create a new one to get started.</p>
-                </div>
-            </div>
-          )}
-        </main>
+        {renderMainContent()}
       </div>
 
       <SpaceFormModal

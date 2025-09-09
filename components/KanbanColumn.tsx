@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
-import { Status } from '../types';
+import { Status, CustomFieldDefinition } from '../types';
 import { TaskCard } from './TaskCard';
 import { KanbanTask } from './KanbanView';
 
 
+// Task type for the column now includes custom fields
+type ColumnTask = KanbanTask & {
+  customFields: {
+    definition: CustomFieldDefinition | undefined;
+    value: any;
+  }[];
+}
+
 interface KanbanColumnProps {
   status: Status;
-  tasks: KanbanTask[];
+  tasks: ColumnTask[];
   onDropTask: (taskId: string, newStatus: Status) => void;
 }
 

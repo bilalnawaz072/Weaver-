@@ -27,9 +27,43 @@ export interface Task {
   title: string;
   description: string;
   status: Status;
+  startDate: Date | null;
+  dueDate: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 // Type for sortable keys of a Task
 export type TaskSortKey = keyof Omit<Task, 'projectId' | 'parentTaskId'>;
+
+// Custom Fields
+export enum CustomFieldType {
+  Text = 'Text',
+  Number = 'Number',
+  Date = 'Date',
+  Select = 'Select',
+}
+
+export interface CustomFieldDefinition {
+  id: string;
+  projectId: string;
+  name: string;
+  type: CustomFieldType;
+  options?: string[]; // For 'Select' type
+}
+
+export interface CustomFieldValue {
+  id:string;
+  taskId: string;
+  fieldDefinitionId: string;
+  value: any; // Can be string, number, or Date
+}
+
+export interface Doc {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}

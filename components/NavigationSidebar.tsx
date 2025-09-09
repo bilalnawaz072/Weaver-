@@ -1,19 +1,105 @@
 import React, { useState } from 'react';
-import { Project, Space } from '../types';
-import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon } from './icons';
+import { Project, Space, Doc } from '../types';
+import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon } from './icons';
 
 interface NavigationSidebarProps {
   spaces: Space[];
   projects: Project[];
+  docs: Doc[];
   selectedProjectId: string | null;
+  activeContentType: 'tasks' | 'doc';
+  activeDocId: string | null;
   onSelectProject: (id: string) => void;
+  onSelectDoc: (id: string) => void;
   onCreateSpace: () => void;
   onEditSpace: (space: Space) => void;
   onDeleteSpace: (id: string) => void;
   onCreateProject: (spaceId: string) => void;
   onEditProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
+  onCreateDoc: (projectId: string) => void;
+  onDeleteDoc: (id: string) => void;
 }
+
+const ProjectItem: React.FC<{
+    project: Project;
+    docs: Doc[];
+    selectedProjectId: string | null;
+    activeContentType: 'tasks' | 'doc';
+    activeDocId: string | null;
+    onSelectProject: (id: string) => void;
+    onSelectDoc: (id: string) => void;
+    onEditProject: (project: Project) => void;
+    onDeleteProject: (id: string) => void;
+    onCreateDoc: (projectId: string) => void;
+    onDeleteDoc: (id: string) => void;
+}> = (props) => {
+    const { project, docs, selectedProjectId, activeContentType, activeDocId, onSelectProject, onSelectDoc, onEditProject, onDeleteProject, onCreateDoc, onDeleteDoc } = props;
+    const isProjectActive = selectedProjectId === project.id;
+    
+    return (
+        <li className="space-y-1">
+            <div className={`group flex items-center justify-between w-full p-2 rounded-md text-sm font-medium ${isProjectActive ? 'bg-gray-700/70' : ''}`}>
+                <div className="flex items-center space-x-3 truncate">
+                    <FolderIcon className="flex-shrink-0" />
+                    <span className="truncate">{project.name}</span>
+                </div>
+                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); onCreateDoc(project.id); }} className="p-1 rounded hover:bg-gray-600/50" aria-label={`Add document to ${project.name}`}><PlusIcon className="w-4 h-4" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onEditProject(project); }} className="p-1 rounded hover:bg-gray-600/50" aria-label={`Edit ${project.name}`}><EditIcon className="w-4 h-4" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onDeleteProject(project.id); }} className="p-1 rounded hover:bg-red-500/50" aria-label={`Delete ${project.name}`}><TrashIcon className="w-4 h-4" /></button>
+                </div>
+            </div>
+            
+            <ul className="pl-4 space-y-1">
+                {/* Tasks Link */}
+                <li>
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onSelectProject(project.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectProject(project.id); }}
+                        className={`group flex items-center justify-between w-full p-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                            isProjectActive && activeContentType === 'tasks'
+                                ? 'bg-indigo-600 text-white'
+                                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                        }`}
+                    >
+                        <div className="flex items-center space-x-3 truncate">
+                            <TableCellsIcon className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">Tasks</span>
+                        </div>
+                    </div>
+                </li>
+                {/* Docs List */}
+                {docs.map(doc => (
+                     <li key={doc.id}>
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => onSelectDoc(doc.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectDoc(doc.id); }}
+                            className={`group flex items-center justify-between w-full p-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                                activeDocId === doc.id
+                                ? 'bg-indigo-600 text-white'
+                                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                            }`}
+                        >
+                            <div className="flex items-center space-x-3 truncate">
+                                <DocumentTextIcon className="flex-shrink-0" />
+                                <span className="truncate">{doc.title}</span>
+                            </div>
+                             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                <button onClick={(e) => { e.stopPropagation(); onDeleteDoc(doc.id); }} className="p-1 rounded hover:bg-red-500/50" aria-label={`Delete ${doc.title}`}><TrashIcon className="w-4 h-4" /></button>
+                            </div>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </li>
+    );
+};
+
 
 const SpaceItem: React.FC<{
     space: Space,
@@ -49,7 +135,7 @@ const SpaceItem: React.FC<{
 };
 
 export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
-  const { spaces, projects, selectedProjectId, onSelectProject, onCreateSpace, onEditSpace, onDeleteSpace, onCreateProject, onEditProject, onDeleteProject } = props;
+  const { spaces, projects, docs, ...rest } = props;
 
   return (
     <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 h-full flex flex-col">
@@ -59,7 +145,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
             <h2 className="text-xl font-bold text-white">Spaces</h2>
         </div>
         <button
-          onClick={onCreateSpace}
+          onClick={props.onCreateSpace}
           className="p-2 rounded-md hover:bg-gray-700 transition-colors"
           aria-label="Create new space"
         >
@@ -77,33 +163,17 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
             <SpaceItem 
                 key={space.id} 
                 space={space}
-                onEdit={() => onEditSpace(space)}
-                onDelete={() => onDeleteSpace(space.id)}
-                onAddProject={() => onCreateProject(space.id)}
+                onEdit={() => props.onEditSpace(space)}
+                onDelete={() => props.onDeleteSpace(space.id)}
+                onAddProject={() => props.onCreateProject(space.id)}
             >
               {projects.filter(p => p.spaceId === space.id).map(project => (
-                <li key={project.id}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onSelectProject(project.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectProject(project.id); }}
-                    className={`group flex items-center justify-between w-full p-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
-                      selectedProjectId === project.id
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3 truncate">
-                        <FolderIcon className="flex-shrink-0" />
-                        <span className="truncate">{project.name}</span>
-                    </div>
-                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                        <button onClick={(e) => { e.stopPropagation(); onEditProject(project); }} className="p-1 rounded hover:bg-gray-600/50" aria-label={`Edit ${project.name}`}><EditIcon className="w-4 h-4" /></button>
-                        <button onClick={(e) => { e.stopPropagation(); onDeleteProject(project.id); }} className="p-1 rounded hover:bg-red-500/50" aria-label={`Delete ${project.name}`}><TrashIcon className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                </li>
+                <ProjectItem
+                    key={project.id}
+                    project={project}
+                    docs={docs.filter(d => d.projectId === project.id)}
+                    {...rest}
+                />
               ))}
             </SpaceItem>
           ))}

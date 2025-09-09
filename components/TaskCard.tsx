@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
-import { Task, Status } from '../types';
+import { Task, Status, CustomFieldDefinition, CustomFieldType } from '../types';
 import { ArrowUturnDownIcon, ChevronDownIcon, ChevronRightIcon } from './icons';
 import { KanbanTask } from './KanbanView';
 
 interface TaskCardProps {
-  task: KanbanTask;
+  task: KanbanTask & {
+    customFields: {
+        definition: CustomFieldDefinition | undefined;
+        value: any;
+    }[];
+  };
 }
 
 const statusIndicatorColors: { [key in Status]: string } = {
@@ -39,6 +44,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
   const hasSubtasks = task.subtaskCount > 0;
   const isDone = task.status === Status.Done;
+  const hasCustomFields = task.customFields && task.customFields.length > 0;
+  const hasDates = task.startDate || task.dueDate;
 
   return (
     <div
@@ -56,7 +63,29 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
           <p className={`text-sm text-gray-400 mt-1 break-words transition-colors ${isDone ? 'line-through' : ''}`}>{task.description || 'No description'}</p>
         </div>
         
-        <div className="flex items-center">
+        {hasDates && (
+            <div className="text-xs text-gray-400 flex items-center gap-2">
+                <span>🗓️</span>
+                <span>{task.startDate?.toLocaleDateString() ?? '...'}</span>
+                <span>→</span>
+                <span>{task.dueDate?.toLocaleDateString() ?? '...'}</span>
+            </div>
+        )}
+
+        {hasCustomFields && (
+            <div className="border-t border-gray-700 pt-3 mt-1 space-y-1.5 text-xs">
+                {task.customFields.map(({ definition, value }) => (
+                    <div key={definition!.id} className="flex items-center">
+                        <span className="text-gray-400 w-2/5 truncate">{definition!.name}:</span>
+                        <span className="text-gray-200 font-medium w-3/5 truncate">
+                            {definition!.type === CustomFieldType.Date ? new Date(value).toLocaleDateString() : String(value)}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        )}
+
+        <div className="flex items-center mt-auto pt-2">
             <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${statusPillColors[task.status]}`}>
                 {task.status}
             </span>

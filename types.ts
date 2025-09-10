@@ -84,6 +84,7 @@ export interface Prompt {
 export enum NodeType {
   TriggerSchedule = 'trigger-schedule',
   LogicIf = 'logic-if',
+  ActionPrompt = 'action-prompt',
 }
 
 export interface BaseNodeData {
@@ -101,7 +102,12 @@ export interface ConditionNodeData extends BaseNodeData {
   value: string;
 }
 
-export type NodeData = ScheduleNodeData | ConditionNodeData;
+export interface PromptNodeData extends BaseNodeData {
+  promptId: string | null;
+  variableMappings: { [key: string]: string };
+}
+
+export type NodeData = ScheduleNodeData | ConditionNodeData | PromptNodeData;
 
 export interface Node<T = NodeData> {
   id: string;

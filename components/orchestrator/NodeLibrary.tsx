@@ -4,6 +4,7 @@ import { NodeType } from '../../types';
 const libraryItems = [
     { type: NodeType.TriggerSchedule, name: 'Schedule', description: 'Starts workflow on a timer.', category: 'Triggers' },
     { type: NodeType.LogicIf, name: 'If/Then', description: 'Branch based on a condition.', category: 'Logic' },
+    { type: NodeType.ActionPrompt, name: 'Prompt', description: 'Executes an AI prompt.', category: 'Actions' },
 ];
 
 const DraggableNode: React.FC<{ item: typeof libraryItems[0] }> = ({ item }) => {

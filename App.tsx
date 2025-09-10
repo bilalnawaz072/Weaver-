@@ -807,6 +807,7 @@ const App: React.FC = () => {
         return (
             <OrchestratorView
                 workflows={workflows}
+                prompts={prompts}
                 onCreateWorkflow={handleCreateWorkflow}
                 onSaveWorkflow={handleSaveWorkflow}
             />

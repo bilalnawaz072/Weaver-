@@ -1,23 +1,20 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Workflow, WorkflowDefinition, Node, Edge, NodeType, NodeData, ScheduleNodeData, ConditionNodeData } from '../../types';
+import { Workflow, WorkflowDefinition, Node, Edge, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData } from '../../types';
 import { NodeLibrary } from './NodeLibrary';
 import { PropertiesPanel } from './PropertiesPanel';
 import { ChevronLeftIcon } from '../icons';
 import { ScheduleNode } from './nodes/ScheduleNode';
 import { ConditionNode } from './nodes/ConditionNode';
+import { PromptNode } from './nodes/PromptNode';
 
 interface AgentCanvasProps {
     workflow: Workflow;
+    prompts: Prompt[];
     onSave: (workflowId: string, name: string, definition: WorkflowDefinition) => void;
     onBack: () => void;
 }
 
-const nodeComponents = {
-    [NodeType.TriggerSchedule]: ScheduleNode,
-    [NodeType.LogicIf]: ConditionNode,
-};
-
-export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, onSave, onBack }) => {
+export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, onSave, onBack }) => {
     const [name, setName] = useState(workflow.name);
     const [nodes, setNodes] = useState<Node[]>(workflow.definition.nodes);
     const [edges, setEdges] = useState<Edge[]>(workflow.definition.edges);
@@ -53,6 +50,9 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, onSave, onBa
                 break;
             case NodeType.LogicIf:
                 newNodeData = { label: 'If Condition', variable: '', operator: 'equals', value: '' } as ConditionNodeData;
+                break;
+            case NodeType.ActionPrompt:
+                newNodeData = { label: 'Prompt', promptId: null, variableMappings: {} } as PromptNodeData;
                 break;
             default:
                 return;
@@ -220,6 +220,19 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, onSave, onBa
                                         onFinishConnection={handleFinishConnection}
                                     />
                                 );
+                            case NodeType.ActionPrompt:
+                                return (
+                                    <PromptNode
+                                        key={node.id}
+                                        ref={(el: HTMLDivElement) => { if(el) nodeRefs.current[node.id] = el }}
+                                        node={node as Node<PromptNodeData>}
+                                        onDrag={handleNodeDrag}
+                                        onSelect={() => setSelectedNodeId(node.id)}
+                                        isSelected={selectedNodeId === node.id}
+                                        onStartConnection={handleStartConnection}
+                                        onFinishConnection={handleFinishConnection}
+                                    />
+                                );
                             default:
                                 return null;
                         }
@@ -229,6 +242,7 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, onSave, onBa
             <PropertiesPanel 
                 selectedNode={selectedNode}
                 onUpdateNodeData={updateNodeData}
+                prompts={prompts}
             />
         </div>
     );

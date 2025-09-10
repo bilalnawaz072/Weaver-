@@ -1,8 +1,11 @@
 import React from 'react';
-import { Node, NodeType, NodeData, ScheduleNodeData, ConditionNodeData } from '../../types';
+import { Node, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData } from '../../types';
+import { PromptNodeProperties } from './PromptNodeProperties';
+
 
 interface PropertiesPanelProps {
     selectedNode: Node | undefined;
+    prompts: Prompt[];
     onUpdateNodeData: (nodeId: string, data: Partial<NodeData>) => void;
 }
 
@@ -101,7 +104,7 @@ const ConditionNodeProperties: React.FC<{ node: Node<ConditionNodeData>, onUpdat
 };
 
 
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedNode, onUpdateNodeData }) => {
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedNode, prompts, onUpdateNodeData }) => {
     const renderProperties = () => {
         if (!selectedNode) return null;
 
@@ -114,6 +117,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedNode, 
                 return <ScheduleNodeProperties node={selectedNode as Node<ScheduleNodeData>} onUpdate={handleUpdate} />;
             case NodeType.LogicIf:
                 return <ConditionNodeProperties node={selectedNode as Node<ConditionNodeData>} onUpdate={handleUpdate} />;
+            case NodeType.ActionPrompt:
+                return <PromptNodeProperties node={selectedNode as Node<PromptNodeData>} prompts={prompts} onUpdate={handleUpdate} />;
             default:
                 return <p>Unknown node type selected.</p>;
         }

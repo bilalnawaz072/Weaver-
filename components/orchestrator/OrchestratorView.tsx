@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { Workflow, WorkflowDefinition } from '../../types';
+import { Workflow, WorkflowDefinition, Prompt } from '../../types';
 import { AgentList } from './AgentList';
 import { AgentCanvas } from './AgentCanvas';
 
 interface OrchestratorViewProps {
     workflows: Workflow[];
+    prompts: Prompt[];
     onCreateWorkflow: () => string; // Returns the ID of the new workflow
     onSaveWorkflow: (workflowId: string, name: string, definition: WorkflowDefinition) => void;
 }
 
 export const OrchestratorView: React.FC<OrchestratorViewProps> = (props) => {
-    const { workflows, onCreateWorkflow, onSaveWorkflow } = props;
+    const { workflows, prompts, onCreateWorkflow, onSaveWorkflow } = props;
     const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
 
     const handleCreateAndEdit = () => {
@@ -34,6 +35,7 @@ export const OrchestratorView: React.FC<OrchestratorViewProps> = (props) => {
                  <AgentCanvas 
                     key={selectedWorkflow.id}
                     workflow={selectedWorkflow}
+                    prompts={prompts}
                     onSave={onSaveWorkflow}
                     onBack={handleBackToList}
                  />

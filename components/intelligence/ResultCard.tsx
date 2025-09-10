@@ -1,6 +1,6 @@
 import React from 'react';
 import { SearchableEntity, Status } from '../../types';
-import { TableCellsIcon, DocumentTextIcon, FolderIcon } from '../icons';
+import { TableCellsIcon, DocumentTextIcon, FolderIcon, ViewfinderCircleIcon } from '../icons';
 
 interface ResultCardProps {
   item: SearchableEntity;
@@ -18,6 +18,7 @@ const getIcon = (type: SearchableEntity['entityType']) => {
         case 'task': return <TableCellsIcon className="w-5 h-5 text-gray-400" />;
         case 'doc': return <DocumentTextIcon className="w-5 h-5 text-gray-400" />;
         case 'project': return <FolderIcon className="w-5 h-5 text-gray-400" />;
+        case 'whiteboard': return <ViewfinderCircleIcon className="w-5 h-5 text-gray-400" />;
         default: return null;
     }
 };
@@ -26,6 +27,7 @@ const getSnippet = (item: SearchableEntity) => {
     switch(item.entityType) {
         case 'task':
         case 'project':
+        case 'whiteboard':
             return item.description;
         case 'doc':
             // A real implementation would generate a snippet from content

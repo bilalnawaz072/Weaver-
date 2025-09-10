@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
-import { Project, Space, Doc } from '../types';
-import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon, BeakerIcon, CpuChipIcon, LightBulbIcon } from './icons';
+import { Project, Space, Doc, Whiteboard } from '../types';
+import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon, BeakerIcon, CpuChipIcon, LightBulbIcon, ViewfinderCircleIcon } from './icons';
 import { ProjectHealthIndicator } from './intelligence/ai-pm/ProjectHealthIndicator';
 
 interface NavigationSidebarProps {
   spaces: Space[];
   projects: Project[];
   docs: Doc[];
+  whiteboards: Whiteboard[];
   selectedProjectId: string | null;
-  activeContentType: 'tasks' | 'doc';
+  activeContentType: 'tasks' | 'doc' | 'whiteboard';
   activeDocId: string | null;
+  activeWhiteboardId: string | null;
   activeMainView: 'workspace' | 'foundry' | 'orchestrator' | 'insights';
   onSelectProject: (id: string) => void;
   onSelectDoc: (id: string) => void;
+  onSelectWhiteboard: (id: string) => void;
   onSetActiveMainView: (view: 'workspace' | 'foundry' | 'orchestrator' | 'insights') => void;
   onCreateSpace: () => void;
   onEditSpace: (space: Space) => void;
@@ -22,22 +25,29 @@ interface NavigationSidebarProps {
   onDeleteProject: (id: string) => void;
   onCreateDoc: (projectId: string) => void;
   onDeleteDoc: (id: string) => void;
+  onCreateWhiteboard: (projectId: string) => void;
+  onDeleteWhiteboard: (id: string) => void;
 }
 
 const ProjectItem: React.FC<{
     project: Project;
     docs: Doc[];
+    whiteboards: Whiteboard[];
     selectedProjectId: string | null;
-    activeContentType: 'tasks' | 'doc';
+    activeContentType: 'tasks' | 'doc' | 'whiteboard';
     activeDocId: string | null;
+    activeWhiteboardId: string | null;
     onSelectProject: (id: string) => void;
     onSelectDoc: (id: string) => void;
+    onSelectWhiteboard: (id: string) => void;
     onEditProject: (project: Project) => void;
     onDeleteProject: (id: string) => void;
     onCreateDoc: (projectId: string) => void;
     onDeleteDoc: (id: string) => void;
+    onCreateWhiteboard: (projectId: string) => void;
+    onDeleteWhiteboard: (id: string) => void;
 }> = (props) => {
-    const { project, docs, selectedProjectId, activeContentType, activeDocId, onSelectProject, onSelectDoc, onEditProject, onDeleteProject, onCreateDoc, onDeleteDoc } = props;
+    const { project, docs, whiteboards, selectedProjectId, activeContentType, activeDocId, activeWhiteboardId, onSelectProject, onSelectDoc, onSelectWhiteboard, onEditProject, onDeleteProject, onCreateDoc, onDeleteDoc, onCreateWhiteboard, onDeleteWhiteboard } = props;
     const isProjectActive = selectedProjectId === project.id;
     
     return (
@@ -49,7 +59,6 @@ const ProjectItem: React.FC<{
                     <ProjectHealthIndicator health={project.health} />
                 </div>
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <button onClick={(e) => { e.stopPropagation(); onCreateDoc(project.id); }} className="p-1 rounded hover:bg-gray-600/50" aria-label={`Add document to ${project.name}`}><PlusIcon className="w-4 h-4" /></button>
                     <button onClick={(e) => { e.stopPropagation(); onEditProject(project); }} className="p-1 rounded hover:bg-gray-600/50" aria-label={`Edit ${project.name}`}><EditIcon className="w-4 h-4" /></button>
                     <button onClick={(e) => { e.stopPropagation(); onDeleteProject(project.id); }} className="p-1 rounded hover:bg-red-500/50" aria-label={`Delete ${project.name}`}><TrashIcon className="w-4 h-4" /></button>
                 </div>
@@ -75,10 +84,15 @@ const ProjectItem: React.FC<{
                         </div>
                     </div>
                 </li>
-                {/* Docs List */}
-                {docs.map(doc => (
-                     <li key={doc.id}>
-                        <div
+                 {/* Docs Section */}
+                <li className="pt-1">
+                    <div className="group flex justify-between items-center text-xs text-gray-400 font-semibold uppercase px-2">
+                        <span>Documents</span>
+                        <button onClick={() => onCreateDoc(project.id)} className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-600/50"><PlusIcon className="w-4 h-4" /></button>
+                    </div>
+                     {docs.map(doc => (
+                         <div
+                            key={doc.id}
                             role="button"
                             tabIndex={0}
                             onClick={() => onSelectDoc(doc.id)}
@@ -97,8 +111,37 @@ const ProjectItem: React.FC<{
                                 <button onClick={(e) => { e.stopPropagation(); onDeleteDoc(doc.id); }} className="p-1 rounded hover:bg-red-500/50" aria-label={`Delete ${doc.title}`}><TrashIcon className="w-4 h-4" /></button>
                             </div>
                         </div>
-                    </li>
-                ))}
+                    ))}
+                </li>
+                 {/* Whiteboards Section */}
+                <li className="pt-1">
+                    <div className="group flex justify-between items-center text-xs text-gray-400 font-semibold uppercase px-2">
+                        <span>Whiteboards</span>
+                        <button onClick={() => onCreateWhiteboard(project.id)} className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-600/50"><PlusIcon className="w-4 h-4" /></button>
+                    </div>
+                     {whiteboards.map(wb => (
+                         <div
+                            key={wb.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => onSelectWhiteboard(wb.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectWhiteboard(wb.id); }}
+                            className={`group flex items-center justify-between w-full p-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                                activeWhiteboardId === wb.id
+                                ? 'bg-indigo-600 text-white'
+                                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                            }`}
+                        >
+                            <div className="flex items-center space-x-3 truncate">
+                                <ViewfinderCircleIcon className="w-4 h-4 flex-shrink-0" />
+                                <span className="truncate">{wb.title}</span>
+                            </div>
+                             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                <button onClick={(e) => { e.stopPropagation(); onDeleteWhiteboard(wb.id); }} className="p-1 rounded hover:bg-red-500/50" aria-label={`Delete ${wb.title}`}><TrashIcon className="w-4 h-4" /></button>
+                            </div>
+                        </div>
+                    ))}
+                </li>
             </ul>
         </li>
     );
@@ -139,7 +182,7 @@ const SpaceItem: React.FC<{
 };
 
 export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
-  const { spaces, projects, docs, activeMainView, onSetActiveMainView, ...rest } = props;
+  const { spaces, projects, docs, whiteboards, activeMainView, onSetActiveMainView, ...rest } = props;
 
   return (
     <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 h-full flex flex-col">
@@ -217,6 +260,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
                             key={project.id}
                             project={project}
                             docs={docs.filter(d => d.projectId === project.id)}
+                            whiteboards={whiteboards.filter(wb => wb.projectId === project.id)}
                             {...rest}
                         />
                     ))}

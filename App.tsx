@@ -1,5 +1,8 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus, HttpRequestNodeData, CreateTaskNodeData, SearchableEntity, Prediction, InsightSuggestion, Insight, PredictionType, RiskLevel, SuggestionType, SuggestionStatus } from './types';
+
+
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+// FIX: Add Whiteboard and WhiteboardElement to imports
+import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus, HttpRequestNodeData, CreateTaskNodeData, SearchableEntity, Prediction, InsightSuggestion, Insight, PredictionType, RiskLevel, SuggestionType, SuggestionStatus, Whiteboard, WhiteboardElement } from './types';
 import { TaskTable } from './components/TaskTable';
 import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
@@ -19,7 +22,10 @@ import { OrchestratorView } from './components/orchestrator/OrchestratorView';
 import { GlobalSearchBar } from './components/intelligence/GlobalSearchBar';
 import { SearchResultsModal } from './components/intelligence/SearchResultsModal';
 import { InsightsDashboard } from './components/intelligence/ai-pm/InsightsDashboard';
-import { GoogleGenAI, type Chat } from "@google/genai";
+import { GoogleGenAI, type Chat, Type } from "@google/genai";
+// FIX: Import WhiteboardView and AIConversionModal
+import { WhiteboardView } from './components/WhiteboardView';
+import { AIConversionModal } from './components/whiteboard/AIConversionModal';
 
 const initialSpaces: Space[] = [
     { id: 'space-1', name: 'Product Development', createdAt: new Date(), updatedAt: new Date() },
@@ -68,6 +74,11 @@ const initialDocs: Doc[] = [
     { id: 'doc-1', projectId: 'proj-1', title: 'Project Charter', content: textToTipTapJson('This document outlines the scope, objectives, and participants of the Weaver App Development project.'), createdAt: new Date(2023, 10, 1, 8, 0), updatedAt: new Date(2023, 10, 1, 9, 0)},
     { id: 'doc-2', projectId: 'proj-1', title: 'Technical Specification', content: textToTipTapJson('## Core Technologies\n- React\n- TypeScript\n- TailwindCSS'), createdAt: new Date(2023, 10, 2, 14, 0), updatedAt: new Date(2023, 10, 3, 10, 0)},
     { id: 'doc-3', projectId: 'proj-2', title: 'Campaign Brief', content: textToTipTapJson('Brief for the Q1 marketing campaign.'), createdAt: new Date(2023, 10, 4, 11, 0), updatedAt: new Date(2023, 10, 4, 11, 0)},
+];
+
+// FIX: Add initial data for whiteboards
+const initialWhiteboards: Whiteboard[] = [
+    { id: 'wb-1', projectId: 'proj-1', title: 'Q1 Strategy Brainstorm', elements: [], createdAt: new Date(), updatedAt: new Date() },
 ];
 
 const initialCustomFieldDefinitions: CustomFieldDefinition[] = [
@@ -268,13 +279,18 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [docs, setDocs] = useState<Doc[]>(initialDocs);
+  // FIX: Add state for whiteboards
+  const [whiteboards, setWhiteboards] = useState<Whiteboard[]>(initialWhiteboards);
   const [customFieldDefinitions, setCustomFieldDefinitions] = useState<CustomFieldDefinition[]>(initialCustomFieldDefinitions);
   const [customFieldValues, setCustomFieldValues] = useState<CustomFieldValue[]>(initialCustomFieldValues);
   
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'table' | 'kanban' | 'timeline' | 'calendar' | 'mindmap' | 'graph'>('table');
-  const [activeContentType, setActiveContentType] = useState<'tasks' | 'doc'>('tasks');
+  // FIX: Add 'whiteboard' to active content type
+  const [activeContentType, setActiveContentType] = useState<'tasks' | 'doc' | 'whiteboard'>('tasks');
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  // FIX: Add state for active whiteboard
+  const [activeWhiteboardId, setActiveWhiteboardId] = useState<string | null>(null);
   
   const [sortConfig, setSortConfig] = useState<{ key: TaskSortKey | null; direction: 'ascending' | 'descending' }>({ key: 'createdAt', direction: 'descending' });
   const [visibleTableColumns, setVisibleTableColumns] = useState<string[]>(['title', 'status', 'startDate', 'dueDate', 'createdAt']);
@@ -311,11 +327,17 @@ const App: React.FC = () => {
   const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false);
   const [spaceToEdit, setSpaceToEdit] = useState<Space | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'space' | 'project' | 'task' | 'customField' | 'doc' | 'prompt' } | null>(null);
+  // FIX: Add 'whiteboard' to item to delete type
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'space' | 'project' | 'task' | 'customField' | 'doc' | 'prompt' | 'whiteboard' } | null>(null);
   const [isProjectSettingsModalOpen, setIsProjectSettingsModalOpen] = useState(false);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
   const searchRequestController = useRef(0);
+  // FIX: Add state for AI conversion modal
+  const [isAIConversionModalOpen, setIsAIConversionModalOpen] = useState(false);
+  const [aiConversionIsLoading, setAiConversionIsLoading] = useState(false);
+  const [aiConversionError, setAiConversionError] = useState<string | null>(null);
+  const [proposedTasks, setProposedTasks] = useState<{title: string; description: string}[]>([]);
 
 
   // Effects
@@ -486,6 +508,7 @@ const App: React.FC = () => {
     setSelectedProjectId(projectId);
     setActiveContentType('tasks');
     setActiveDocId(null);
+    setActiveWhiteboardId(null);
     setActiveView('table');
   };
   const handleSelectDoc = (docId: string) => {
@@ -494,8 +517,20 @@ const App: React.FC = () => {
         setSelectedProjectId(doc.projectId);
         setActiveContentType('doc');
         setActiveDocId(docId);
+        setActiveWhiteboardId(null);
     }
   };
+    // FIX: Add whiteboard selection handler
+    const handleSelectWhiteboard = (whiteboardId: string) => {
+        const whiteboard = whiteboards.find(w => w.id === whiteboardId);
+        if (whiteboard) {
+            setSelectedProjectId(whiteboard.projectId);
+            setActiveContentType('whiteboard');
+            setActiveDocId(null);
+            setActiveWhiteboardId(whiteboardId);
+        }
+    };
+
 
   // Space Handlers
   const handleOpenCreateSpaceModal = () => { setSpaceToEdit(null); setIsSpaceModalOpen(true); };
@@ -600,6 +635,27 @@ const App: React.FC = () => {
   };
   const handleDeleteDoc = (id: string) => { setItemToDelete({ id, type: 'doc' }); setIsConfirmModalOpen(true); };
 
+    // FIX: Add whiteboard handlers
+    const handleCreateWhiteboard = (projectId: string) => {
+        const newWhiteboard: Whiteboard = {
+            id: crypto.randomUUID(),
+            projectId,
+            title: 'Untitled Whiteboard',
+            elements: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        };
+        setWhiteboards(prev => [...prev, newWhiteboard]);
+        handleSelectWhiteboard(newWhiteboard.id);
+    };
+    const handleSaveWhiteboard = (whiteboard: Whiteboard) => {
+        setWhiteboards(wbs => wbs.map(wb => wb.id === whiteboard.id ? whiteboard : wb));
+    };
+    const handleDeleteWhiteboard = (id: string) => {
+        setItemToDelete({ id, type: 'whiteboard' });
+        setIsConfirmModalOpen(true);
+    };
+
   // Custom Field Definition Handlers
   const handleSaveCustomFieldDefinition = (definition: Omit<CustomFieldDefinition, 'id' | 'projectId'> | CustomFieldDefinition) => {
     if (!selectedProjectId) return;
@@ -682,13 +738,100 @@ const App: React.FC = () => {
     return handleRunPrompt(prompt.promptText, variables);
   };
   
+    // FIX: Add handlers for whiteboard AI conversion
+    const handleOpenAIConversionModal = async (elementIds: string[]) => {
+        const activeWhiteboard = whiteboards.find(w => w.id === activeWhiteboardId);
+        if (!activeWhiteboard) return;
+
+        const elementsToConvert = activeWhiteboard.elements.filter(el => elementIds.includes(el.id) && (el as any).text.trim() !== '');
+        if (elementsToConvert.length === 0) return;
+
+        setIsAIConversionModalOpen(true);
+        setAiConversionIsLoading(true);
+        setAiConversionError(null);
+        setProposedTasks([]);
+
+        try {
+            if (!aiRef.current) throw new Error("AI client not initialized.");
+
+            const notesText = elementsToConvert
+                .map(el => (el as any).text)
+                .map(text => `- ${text}`)
+                .join('\n');
+
+            const prompt = `
+Based on the following brainstormed sticky notes, please generate a structured list of actionable tasks. For each task, provide a concise "title" and a one-sentence "description". If a note is not actionable, ignore it.
+
+Notes:
+${notesText}
+`;
+            const generateContentWithRetry = async (retries = 1): Promise<any> => {
+                try {
+                    return await aiRef.current!.models.generateContent({
+                        model: 'gemini-2.5-flash',
+                        contents: prompt,
+                        config: {
+                            responseMimeType: 'application/json',
+                            responseSchema: {
+                                type: Type.ARRAY,
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        title: { type: Type.STRING },
+                                        description: { type: Type.STRING },
+                                    },
+                                    required: ["title", "description"],
+                                },
+                            },
+                        },
+                    });
+                } catch (error) {
+                    console.warn(`Gemini API call failed. Retries left: ${retries}`, error);
+                    if (retries > 0) {
+                        await new Promise(res => setTimeout(res, 500));
+                        return generateContentWithRetry(retries - 1);
+                    }
+                    throw error;
+                }
+            };
+
+            const response = await generateContentWithRetry(1);
+
+            const jsonText = response.text.trim();
+            const parsedTasks = JSON.parse(jsonText);
+            setProposedTasks(parsedTasks);
+        } catch (error) {
+            console.error("Error converting whiteboard notes to tasks:", error);
+            setAiConversionError(error instanceof Error ? error.message : "An unknown error occurred during AI processing. The model may have returned an invalid format.");
+        } finally {
+            setAiConversionIsLoading(false);
+        }
+    };
+    
+    const handleConfirmTaskCreation = (tasksToCreate: {title: string, description: string}[]) => {
+        if (!selectedProjectId) return;
+        const newTasks: Task[] = tasksToCreate.map(pt => ({
+            id: crypto.randomUUID(),
+            projectId: selectedProjectId,
+            parentTaskId: null,
+            title: pt.title,
+            description: pt.description,
+            status: Status.Todo,
+            startDate: null,
+            dueDate: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        }));
+        setTasks(prev => [...prev, ...newTasks]);
+    };
+
   const handleCloseSearchModal = () => {
     setIsSearchModalOpen(false);
     chatSessionRef.current = null; // Reset chat on close
   };
 
   // Intelligence Layer: Global Search Handler
-  const handleSearch = async (query: string) => {
+  const handleSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
         setIsSearching(false);
         setSearchResults([]);
@@ -706,6 +849,7 @@ const App: React.FC = () => {
     const allItems: SearchableEntity[] = [
         ...tasks.map(t => ({ ...t, entityType: 'task' as const, title: t.title })),
         ...docs.map(d => ({ ...d, entityType: 'doc' as const, title: d.title })),
+        ...whiteboards.map(w => ({ ...w, entityType: 'whiteboard' as const, title: w.title, description: `Whiteboard with ${w.elements.length} elements.` })),
         ...projects.map(p => ({ ...p, entityType: 'project' as const, title: p.name })),
     ];
     
@@ -751,6 +895,9 @@ const App: React.FC = () => {
         } else if (item.entityType === 'doc') {
             content = tiptapJsonToText(item.content) || '';
             contentLabel = 'Content Summary';
+        } else if (item.entityType === 'whiteboard') {
+            content = item.description || '';
+            contentLabel = 'Description';
         }
 
         const truncatedContent = content.length > 400 ? content.substring(0, 400) + '...' : content;
@@ -785,7 +932,20 @@ Based *only* on the information provided in the search results, answer the user'
             });
         }
         
-        const responseStream = await chatSessionRef.current.sendMessageStream({ message });
+        const sendMessageWithRetry = async (retries = 1): Promise<any> => {
+            try {
+                return await chatSessionRef.current!.sendMessageStream({ message });
+            } catch (error) {
+                console.warn(`Gemini API call failed. Retries left: ${retries}`, error);
+                if (retries > 0) {
+                    await new Promise(res => setTimeout(res, 500)); 
+                    return sendMessageWithRetry(retries - 1);
+                }
+                throw error;
+            }
+        };
+
+        const responseStream = await sendMessageWithRetry(1);
 
         let fullText = '';
         for await (const chunk of responseStream) {
@@ -811,7 +971,7 @@ Based *only* on the information provided in the search results, answer the user'
             setIsSearching(false);
         }
     }
-  };
+  }, [tasks, docs, projects, whiteboards]);
   
   const handleAcceptSuggestion = (suggestionId: string) => {
     setSuggestions(sugs => sugs.map(s => s.id === suggestionId ? {...s, status: SuggestionStatus.Accepted} : s));
@@ -894,6 +1054,15 @@ Based *only* on the information provided in the search results, answer the user'
         if (selectedPromptId === id) {
             setSelectedPromptId(prompts.length > 1 ? prompts.filter(p => p.id !== id)[0].id : null);
         }
+        // FIX: Add delete logic for whiteboards
+    } else if (type === 'whiteboard') {
+        const wbToDelete = whiteboards.find(w => w.id === id);
+        if (wbToDelete) {
+            setWhiteboards(whiteboards.filter(w => w.id !== id));
+            if (activeWhiteboardId === id) {
+                handleSelectProject(wbToDelete.projectId);
+            }
+        }
     }
 
     closeConfirmModal();
@@ -928,6 +1097,11 @@ Based *only* on the information provided in the search results, answer the user'
       const prompt = prompts.find(p => p.id === id);
       return { title: 'Delete Prompt?', message: `Are you sure you want to delete the prompt "${prompt?.name}"? This action cannot be undone.` };
     }
+    // FIX: Add confirm modal content for whiteboards
+    if (type === 'whiteboard') {
+        const wb = whiteboards.find(w => w.id === id);
+        return { title: 'Delete Whiteboard?', message: `Are you sure you want to delete the whiteboard "${wb?.title}"? This action cannot be undone.` };
+    }
     return { title: '', message: '' };
   };
 
@@ -950,6 +1124,10 @@ Based *only* on the information provided in the search results, answer the user'
                 setActiveView('table');
                 handleOpenEditTaskModal(taskToOpen);
             }
+            break;
+        // FIX: Add search result selection logic for whiteboards
+        case 'whiteboard':
+            handleSelectWhiteboard(item.id);
             break;
     }
   };
@@ -982,6 +1160,23 @@ Based *only* on the information provided in the search results, answer the user'
         }
         return null;
     }
+    // FIX: Add rendering logic for WhiteboardView
+    if (activeContentType === 'whiteboard') {
+        const activeWhiteboard = whiteboards.find(w => w.id === activeWhiteboardId);
+        if (activeWhiteboard) {
+            return (
+                 <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+                    <WhiteboardView
+                        whiteboard={activeWhiteboard}
+                        onSave={handleSaveWhiteboard}
+                        onConvertToTasks={handleOpenAIConversionModal}
+                    />
+                 </main>
+            )
+        }
+        return null;
+    }
+
 
     return (
       <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
@@ -1108,16 +1303,20 @@ Based *only* on the information provided in the search results, answer the user'
   return (
     <div className="h-screen w-screen bg-gray-900 text-gray-100 flex p-4 gap-4 font-sans">
       <div className="w-1/3 lg:w-1/4 xl:w-1/5 flex-shrink-0">
+        {/* FIX: Pass missing whiteboard props to NavigationSidebar */}
         <NavigationSidebar
           spaces={spaces}
           projects={projects}
           docs={docs}
+          whiteboards={whiteboards}
           selectedProjectId={selectedProjectId}
           activeContentType={activeContentType}
           activeDocId={activeDocId}
+          activeWhiteboardId={activeWhiteboardId}
           activeMainView={activeMainView}
           onSelectProject={handleSelectProject}
           onSelectDoc={handleSelectDoc}
+          onSelectWhiteboard={handleSelectWhiteboard}
           onSetActiveMainView={setActiveMainView}
           onCreateSpace={handleOpenCreateSpaceModal}
           onEditSpace={handleOpenEditSpaceModal}
@@ -1127,6 +1326,8 @@ Based *only* on the information provided in the search results, answer the user'
           onDeleteProject={handleDeleteProject}
           onCreateDoc={handleCreateDoc}
           onDeleteDoc={handleDeleteDoc}
+          onCreateWhiteboard={handleCreateWhiteboard}
+          onDeleteWhiteboard={handleDeleteWhiteboard}
         />
       </div>
 
@@ -1184,6 +1385,15 @@ Based *only* on the information provided in the search results, answer the user'
         synthesizedAnswer={synthesizedAnswer}
         results={searchResults}
         onResultClick={handleSelectSearchResult}
+      />
+      {/* FIX: Add AIConversionModal to the DOM */}
+      <AIConversionModal
+        isOpen={isAIConversionModalOpen}
+        isLoading={aiConversionIsLoading}
+        error={aiConversionError}
+        proposedTasks={proposedTasks}
+        onClose={() => setIsAIConversionModalOpen(false)}
+        onConfirm={handleConfirmTaskCreation}
       />
 
     </div>

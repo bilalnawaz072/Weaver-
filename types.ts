@@ -83,6 +83,37 @@ export interface Prompt {
   updatedAt: Date;
 }
 
+// --- Whiteboard Types ---
+
+export enum WhiteboardElementType {
+  StickyNote = 'sticky-note',
+}
+
+export interface BaseWhiteboardElement {
+  id: string;
+  type: WhiteboardElementType;
+  position: { x: number; y: number };
+  dimensions: { width: number; height: number };
+}
+
+export interface StickyNoteElement extends BaseWhiteboardElement {
+  type: WhiteboardElementType.StickyNote;
+  text: string;
+  color: string;
+}
+
+export type WhiteboardElement = StickyNoteElement; // Union for more types later
+
+export interface Whiteboard {
+  id: string;
+  projectId: string;
+  title: string;
+  elements: WhiteboardElement[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+
 // --- Orchestrator Types ---
 
 export enum NodeType {
@@ -257,4 +288,5 @@ export type Insight = (Prediction & { insightType: 'prediction' }) | (InsightSug
 export type SearchableEntity = 
     | (Task & { entityType: 'task', title: string })
     | (Doc & { entityType: 'doc', title: string })
+    | (Whiteboard & { entityType: 'whiteboard', title: string, description: string })
     | (Project & { entityType: 'project', title: string, description: string });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Prompt } from '../../types';
 import { TrashIcon } from '../icons';
 import { TestConsole } from './TestConsole';
@@ -8,12 +8,8 @@ const useDebounce = (callback: (...args: any[]) => void, delay: number) => {
     const timeoutRef = useRef<number | null>(null);
 
     const debouncedCallback = useCallback((...args: any[]) => {
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-        }
-        timeoutRef.current = window.setTimeout(() => {
-            callback(...args);
-        }, delay);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = window.setTimeout(() => callback(...args), delay);
     }, [callback, delay]);
 
     return debouncedCallback;
@@ -31,6 +27,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ prompt, onSave, onDe
     const [name, setName] = useState(prompt.name);
     const [description, setDescription] = useState(prompt.description);
     const [promptText, setPromptText] = useState(prompt.promptText);
+    const [contextVariableName, setContextVariableName] = useState(prompt.contextVariableName || '');
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
 
     const isMounted = useRef(false);
@@ -40,11 +37,17 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ prompt, onSave, onDe
         setSaveStatus('saved');
     }, 1000);
 
+    const variables = useMemo(() => {
+        const found = promptText.match(/{{\s*(\w+)\s*}}/g) || [];
+        return [...new Set(found.map(v => v.replace(/{{\s*|\s*}}/g, '')))];
+    }, [promptText]);
+
     useEffect(() => {
         // Reset form state when a new prompt is selected
         setName(prompt.name);
         setDescription(prompt.description);
         setPromptText(prompt.promptText);
+        setContextVariableName(prompt.contextVariableName || '');
         setSaveStatus('saved');
         isMounted.current = false; // Reset mount status
     }, [prompt]);
@@ -52,12 +55,20 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ prompt, onSave, onDe
     useEffect(() => {
         if (isMounted.current) {
             setSaveStatus('saving');
-            debouncedSave({ id: prompt.id, name, description, promptText });
+            debouncedSave({ id: prompt.id, name, description, promptText, contextVariableName: contextVariableName || null });
         } else {
             // This prevents the effect from running on the initial mount
             isMounted.current = true;
         }
-    }, [name, description, promptText, prompt.id, debouncedSave]);
+    }, [name, description, promptText, contextVariableName, prompt.id, debouncedSave]);
+    
+     // If the currently selected context variable is no longer in the prompt text, reset it.
+    useEffect(() => {
+        if (contextVariableName && !variables.includes(contextVariableName)) {
+            setContextVariableName('');
+        }
+    }, [variables, contextVariableName]);
+
 
     const getStatusText = () => {
         switch (saveStatus) {
@@ -103,10 +114,27 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ prompt, onSave, onDe
                     />
                 </div>
                 
+                 <div className="mb-6 flex-shrink-0">
+                    <label htmlFor="context-variable" className="text-sm font-medium text-gray-400">Context Variable</label>
+                    <p className="text-xs text-gray-500 mb-1">Select which variable receives document content for slash commands.</p>
+                     <select
+                        id="context-variable"
+                        value={contextVariableName}
+                        onChange={e => setContextVariableName(e.target.value)}
+                        className="w-full bg-gray-900/50 border border-gray-600 rounded-md p-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition appearance-none"
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
+                        disabled={variables.length === 0}
+                    >
+                        <option value="">-- None --</option>
+                        {variables.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                </div>
+                
                 <div className="flex-grow flex flex-col">
-                    <label htmlFor="prompt-text" className="text-sm font-medium text-gray-400">Prompt Text</label>
-                     {/* FIX: The {{variable}} syntax was causing a JSX parsing error. It has been corrected to render as a string. */}
-                     <p className="text-xs text-gray-500 mb-2">Use <code className="bg-gray-700 px-1 py-0.5 rounded">{`{{variable}}`}</code> syntax to define inputs.</p>
+                    <div className="flex justify-between items-baseline">
+                        <label htmlFor="prompt-text" className="text-sm font-medium text-gray-400">Prompt Text</label>
+                        <p className="text-xs text-gray-500 mb-2">Use <code className="bg-gray-700 px-1 py-0.5 rounded">{'{{variable}}'}</code> syntax to define inputs.</p>
+                    </div>
                     <textarea
                         id="prompt-text"
                         value={promptText}

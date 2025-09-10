@@ -63,7 +63,7 @@ export interface Doc {
   id: string;
   projectId: string;
   title: string;
-  content: string;
+  content: any; // Changed from string to any for structured JSON
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +73,7 @@ export interface Prompt {
   name: string;
   description: string;
   promptText: string;
+  contextVariableName?: string | null; // New field for slash command context
   createdAt: Date;
   updatedAt: Date;
 }

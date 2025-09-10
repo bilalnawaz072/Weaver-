@@ -37,10 +37,20 @@ const initialTasks: Task[] = [
   { id: '8', projectId: 'proj-2', parentTaskId: null, title: 'Draft blog post', description: 'Write a blog post about the new features.', status: Status.Todo, startDate: null, dueDate: new Date(2023, 10, 25), createdAt: new Date(2023, 10, 3, 9, 0), updatedAt: new Date(2023, 10, 3, 9, 0) },
 ];
 
+const textToTipTapJson = (text: string) => {
+    return {
+        type: 'doc',
+        content: text.split('\n').map(paragraph => ({
+            type: 'paragraph',
+            content: paragraph ? [{ type: 'text', text: paragraph }] : []
+        }))
+    };
+};
+
 const initialDocs: Doc[] = [
-    { id: 'doc-1', projectId: 'proj-1', title: 'Project Charter', content: 'This document outlines the scope, objectives, and participants of the Weaver App Development project.', createdAt: new Date(2023, 10, 1, 8, 0), updatedAt: new Date(2023, 10, 1, 9, 0)},
-    { id: 'doc-2', projectId: 'proj-1', title: 'Technical Specification', content: '## Core Technologies\n- React\n- TypeScript\n- TailwindCSS', createdAt: new Date(2023, 10, 2, 14, 0), updatedAt: new Date(2023, 10, 3, 10, 0)},
-    { id: 'doc-3', projectId: 'proj-2', title: 'Campaign Brief', content: 'Brief for the Q1 marketing campaign.', createdAt: new Date(2023, 10, 4, 11, 0), updatedAt: new Date(2023, 10, 4, 11, 0)},
+    { id: 'doc-1', projectId: 'proj-1', title: 'Project Charter', content: textToTipTapJson('This document outlines the scope, objectives, and participants of the Weaver App Development project.'), createdAt: new Date(2023, 10, 1, 8, 0), updatedAt: new Date(2023, 10, 1, 9, 0)},
+    { id: 'doc-2', projectId: 'proj-1', title: 'Technical Specification', content: textToTipTapJson('## Core Technologies\n- React\n- TypeScript\n- TailwindCSS'), createdAt: new Date(2023, 10, 2, 14, 0), updatedAt: new Date(2023, 10, 3, 10, 0)},
+    { id: 'doc-3', projectId: 'proj-2', title: 'Campaign Brief', content: textToTipTapJson('Brief for the Q1 marketing campaign.'), createdAt: new Date(2023, 10, 4, 11, 0), updatedAt: new Date(2023, 10, 4, 11, 0)},
 ];
 
 const initialCustomFieldDefinitions: CustomFieldDefinition[] = [
@@ -56,8 +66,9 @@ const initialCustomFieldValues: CustomFieldValue[] = [
 ];
 
 const initialPrompts: Prompt[] = [
-    { id: 'p-1', name: 'Summarize Text', description: 'A simple prompt to summarize a piece of text.', promptText: 'Please summarize the following text in a single paragraph:\n\n{{text_to_summarize}}', createdAt: new Date(), updatedAt: new Date() },
-    { id: 'p-2', name: 'Generate Blog Post Ideas', description: 'Creates a list of blog post ideas based on a topic.', promptText: 'Generate a list of 5 creative blog post titles about the topic of {{topic}}.', createdAt: new Date(), updatedAt: new Date() },
+    { id: 'p-1', name: 'Summarize Text', description: 'Summarizes the content of the document.', promptText: 'Please summarize the following text in a single, concise paragraph:\n\n{{document_content}}', contextVariableName: 'document_content', createdAt: new Date(), updatedAt: new Date() },
+    { id: 'p-2', name: 'Generate Blog Post Ideas', description: 'Creates a list of blog post ideas based on a topic.', promptText: 'Generate a list of 5 creative blog post titles about the topic of {{topic}}.', contextVariableName: null, createdAt: new Date(), updatedAt: new Date() },
+    { id: 'p-3', name: 'Brainstorm Next Steps', description: 'Reads a document and suggests next steps.', promptText: 'Based on the following document, please brainstorm a list of 3-5 actionable next steps or tasks:\n\n{{document_content}}', contextVariableName: 'document_content', createdAt: new Date(), updatedAt: new Date() },
 ];
 
 
@@ -380,14 +391,14 @@ const App: React.FC = () => {
       id: crypto.randomUUID(),
       projectId,
       title: 'Untitled Document',
-      content: '',
+      content: { type: 'doc', content: [{ type: 'paragraph' }] }, // Initialize with empty TipTap structure
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     setDocs(prev => [...prev, newDoc]);
     handleSelectDoc(newDoc.id);
   };
-  const handleSaveDoc = (docId: string, data: { title: string; content: string }) => {
+  const handleSaveDoc = (docId: string, data: { title: string; content: any }) => {
     setDocs(docs => docs.map(d => d.id === docId ? { ...d, ...data, updatedAt: new Date() } : d));
   };
   const handleDeleteDoc = (id: string) => { setItemToDelete({ id, type: 'doc' }); setIsConfirmModalOpen(true); };
@@ -411,6 +422,7 @@ const App: React.FC = () => {
         name: 'New Untitled Prompt',
         description: '',
         promptText: 'Your prompt text with {{variables}} here.',
+        contextVariableName: null,
         createdAt: new Date(),
         updatedAt: new Date(),
     };
@@ -450,6 +462,40 @@ const App: React.FC = () => {
           }
           return "An unknown error occurred while contacting the AI model.";
       }
+  };
+  
+  // New handler for in-document prompt execution
+  const handleExecutePromptInDoc = async (docId: string, promptId: string): Promise<string> => {
+    const doc = docs.find(d => d.id === docId);
+    const prompt = prompts.find(p => p.id === promptId);
+
+    if (!doc || !prompt) {
+        return "Error: Could not find the specified document or prompt.";
+    }
+    if (!prompt.contextVariableName) {
+        return `Error: The prompt "${prompt.name}" is not configured for in-document execution. Please set a context variable in the Foundry.`;
+    }
+
+    // Helper to convert TipTap JSON to plain text
+    const tiptapJsonToText = (node: any): string => {
+        if (!node) return '';
+        if (node.type === 'text' && node.text) {
+            return node.text;
+        }
+        if (node.content && Array.isArray(node.content)) {
+            // Join paragraphs with double newline, other nodes with single
+            return node.content.map(tiptapJsonToText).join(node.type === 'doc' ? '\n\n' : '');
+        }
+        return '';
+    };
+
+    const docText = tiptapJsonToText(doc.content).trim();
+    if (!docText) {
+        return "Error: The document is empty. Please add some content to use as context.";
+    }
+
+    const variables = { [prompt.contextVariableName]: docText };
+    return handleRunPrompt(prompt.promptText, variables);
   };
 
 
@@ -678,8 +724,10 @@ const App: React.FC = () => {
               <DocEditor
                   key={activeDoc.id}
                   doc={activeDoc}
+                  prompts={prompts.filter(p => p.contextVariableName)} // Only pass prompts usable in docs
                   onSave={handleSaveDoc}
                   onDelete={handleDeleteDoc}
+                  onExecutePrompt={handleExecutePromptInDoc}
                />
           ) : null
         ) : (

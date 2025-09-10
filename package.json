@@ -11,7 +11,26 @@
   "dependencies": {
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "@google/genai": "^1.18.0"
+    "@google/genai": "^1.18.0",
+    "@tiptap/core": "^2.8.0",
+    "@tiptap/pm/model": "^2.8.0",
+    "@tiptap/pm/state": "^2.8.0",
+    "@tiptap/pm/view": "^2.8.0",
+    "@tiptap/pm/keymap": "^2.8.0",
+    "@tiptap/pm/commands": "^2.8.0",
+    "@tiptap/pm/schema-list": "^2.8.0",
+    "@tiptap/pm/transform": "^2.8.0",
+    "@tiptap/pm/history": "^2.8.0",
+    "@tiptap/pm/collab": "^2.8.0",
+    "@tiptap/pm/dropcursor": "^2.8.0",
+    "@tiptap/pm/gapcursor": "^2.8.0",
+    "@tiptap/pm/inputrules": "^2.8.0",
+    "@tiptap/react": "^2.8.0",
+    "@tiptap/starter-kit": "^2.8.0",
+    "@tiptap/extension-placeholder": "^2.8.0",
+    "@tiptap/extension-mention": "^2.8.0",
+    "@tiptap/suggestion": "^2.8.0",
+    "tippy.js": "^6.3.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

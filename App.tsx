@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType } from './types';
+import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus } from './types';
 import { TaskTable } from './components/TaskTable';
 import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
@@ -93,6 +93,44 @@ const initialWorkflows: Workflow[] = [
     }
 ];
 
+const initialWorkflowRuns: WorkflowRun[] = [
+    {
+        id: 'run-1',
+        workflowId: 'wf-1',
+        workflowName: 'Daily Project Summary',
+        status: WorkflowRunStatus.Succeeded,
+        startedAt: new Date(new Date().getTime() - 24 * 60 * 60 * 1000), // 1 day ago
+        endedAt: new Date(new Date().getTime() - (24 * 60 * 60 * 1000 - 5000)), // 5 seconds later
+    },
+    {
+        id: 'run-2',
+        workflowId: 'wf-1',
+        workflowName: 'Daily Project Summary',
+        status: WorkflowRunStatus.Failed,
+        startedAt: new Date(new Date().getTime() - 2 * 60 * 60 * 1000), // 2 hours ago
+        endedAt: new Date(new Date().getTime() - (2 * 60 * 60 * 1000 - 2000)), // 2 seconds later
+    },
+    {
+        id: 'run-3',
+        workflowId: 'wf-1',
+        workflowName: 'Daily Project Summary',
+        status: WorkflowRunStatus.Running,
+        startedAt: new Date(),
+        endedAt: null,
+    },
+];
+
+const initialStepExecutions: StepExecution[] = [
+    // Run 1 (Success)
+    { id: 'se-1-1', runId: 'run-1', nodeId: 'n-1', status: StepExecutionStatus.Succeeded, inputData: null, outputData: { timestamp: '2024-01-01T09:00:00Z', dayOfWeek: 1 }, startedAt: new Date(), endedAt: new Date() },
+    { id: 'se-1-2', runId: 'run-1', nodeId: 'n-2', status: StepExecutionStatus.Succeeded, inputData: { 'date.dayOfWeek': 1 }, outputData: { conditionResult: true }, startedAt: new Date(), endedAt: new Date() },
+    // Run 2 (Failure)
+    { id: 'se-2-1', runId: 'run-2', nodeId: 'n-1', status: StepExecutionStatus.Succeeded, inputData: null, outputData: { timestamp: '2024-01-02T09:00:00Z', dayOfWeek: 2 }, startedAt: new Date(), endedAt: new Date() },
+    { id: 'se-2-2', runId: 'run-2', nodeId: 'n-2', status: StepExecutionStatus.Failed, inputData: { 'date.dayOfWeek': 2 }, outputData: null, errorMessage: 'Failed to evaluate condition: variable `date.dayOfWeek` is not a number.', startedAt: new Date(), endedAt: new Date() },
+     // Run 3 (Running)
+    { id: 'se-3-1', runId: 'run-3', nodeId: 'n-1', status: StepExecutionStatus.Succeeded, inputData: null, outputData: { timestamp: '2024-01-03T09:00:00Z', dayOfWeek: 3 }, startedAt: new Date(), endedAt: new Date() },
+];
+
 
 const getUpdatedTasksWithPropagation = (
     tasks: Task[], 
@@ -181,6 +219,8 @@ const App: React.FC = () => {
   
   // Orchestrator State
   const [workflows, setWorkflows] = useState<Workflow[]>(initialWorkflows);
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRun[]>(initialWorkflowRuns);
+  const [stepExecutions, setStepExecutions] = useState<StepExecution[]>(initialStepExecutions);
 
   // Global App State
   const [activeMainView, setActiveMainView] = useState<'workspace' | 'foundry' | 'orchestrator'>('workspace');
@@ -676,11 +716,11 @@ const App: React.FC = () => {
     ));
   };
 
-  const handleConvertMindMapToTasks = (projectId: string) => {
+  const handleConvertMindMapToTasks = (projectId: string, mindMapData: any) => {
       const project = projects.find(p => p.id === projectId);
-      if (!project || !project.mindMapData) return;
+      if (!project || !mindMapData) return;
 
-      const { nodes, edges } = project.mindMapData;
+      const { nodes, edges } = mindMapData;
       if (!nodes || nodes.length === 0) return;
 
       const newTasks: Task[] = [];
@@ -807,6 +847,8 @@ const App: React.FC = () => {
         return (
             <OrchestratorView
                 workflows={workflows}
+                workflowRuns={workflowRuns}
+                stepExecutions={stepExecutions}
                 prompts={prompts}
                 onCreateWorkflow={handleCreateWorkflow}
                 onSaveWorkflow={handleSaveWorkflow}

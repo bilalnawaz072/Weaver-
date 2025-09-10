@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef } from 'react';
+import { StepExecutionStatus } from '../../../types';
 
 interface BaseNodeProps {
     title: string;
@@ -9,13 +10,19 @@ interface BaseNodeProps {
     onSelect: () => void;
     isSelected: boolean;
     children: React.ReactNode;
+    status?: StepExecutionStatus;
+    isReadOnly?: boolean;
 }
 
-export const BaseNode = forwardRef<HTMLDivElement, BaseNodeProps>(({ title, type, color, position, onDrag, onSelect, isSelected, children }, ref) => {
+export const BaseNode = forwardRef<HTMLDivElement, BaseNodeProps>(({ title, type, color, position, onDrag, onSelect, isSelected, children, status, isReadOnly = false }, ref) => {
     const [isDragging, setIsDragging] = useState(false);
     const dragOffset = useRef({ x: 0, y: 0 });
 
     const handleMouseDown = (e: React.MouseEvent) => {
+        if (isReadOnly) {
+            onSelect();
+            return;
+        };
         // Prevent drag from starting on interactive elements like handles
         if ((e.target as HTMLElement).dataset.handle) return;
         
@@ -53,13 +60,18 @@ export const BaseNode = forwardRef<HTMLDivElement, BaseNodeProps>(({ title, type
         };
     }, [isDragging, handleMouseMove, handleMouseUp]);
 
-    const borderClass = isSelected ? 'border-indigo-400 ring-2 ring-indigo-500' : 'border-gray-600';
+    const borderClass = (() => {
+        if (status === StepExecutionStatus.Succeeded) return 'border-green-500 ring-2 ring-green-600/50';
+        if (status === StepExecutionStatus.Failed) return 'border-red-500 ring-2 ring-red-600/50';
+        if (isSelected) return 'border-indigo-400 ring-2 ring-indigo-500';
+        return 'border-gray-600';
+    })();
 
     return (
         <div
             ref={ref}
             className={`absolute bg-gray-800 rounded-lg shadow-xl border-2 transition-all duration-150 ${borderClass}`}
-            style={{ left: position.x, top: position.y, cursor: isDragging ? 'grabbing' : 'grab' }}
+            style={{ left: position.x, top: position.y, cursor: isReadOnly ? 'pointer' : (isDragging ? 'grabbing' : 'grab') }}
             onMouseDown={handleMouseDown}
             onClick={(e) => { e.stopPropagation(); onSelect(); }}
         >

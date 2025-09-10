@@ -137,3 +137,38 @@ export interface Workflow {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// --- Orchestrator Run Types ---
+
+export enum WorkflowRunStatus {
+  Succeeded = 'Succeeded',
+  Failed = 'Failed',
+  Running = 'Running',
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflowId: string;
+  workflowName: string; // Denormalized for easy display
+  status: WorkflowRunStatus;
+  startedAt: Date;
+  endedAt: Date | null;
+}
+
+export enum StepExecutionStatus {
+    Succeeded = 'Succeeded',
+    Failed = 'Failed',
+    Skipped = 'Skipped',
+}
+
+export interface StepExecution {
+    id: string;
+    runId: string;
+    nodeId: string; // The ID of the node from the workflow definition
+    status: StepExecutionStatus;
+    inputData: any;
+    outputData: any;
+    errorMessage?: string;
+    startedAt: Date;
+    endedAt: Date;
+}

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 // FIX: Add Whiteboard and WhiteboardElement to imports
 import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus, HttpRequestNodeData, CreateTaskNodeData, SearchableEntity, Prediction, InsightSuggestion, Insight, PredictionType, RiskLevel, SuggestionType, SuggestionStatus, Whiteboard, WhiteboardElement } from './types';
@@ -8,7 +7,7 @@ import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
 import { ProjectFormModal } from './components/ProjectFormModal';
 import { SpaceFormModal } from './components/SpaceFormModal';
-import { PlusIcon, TableCellsIcon, ViewColumnsIcon, Cog6ToothIcon, DocumentTextIcon, ChartBarIcon, CalendarDaysIcon, ShareIcon, ChartPieIcon } from './components/icons';
+import { PlusIcon, TableCellsIcon, ViewColumnsIcon, Cog6ToothIcon, DocumentTextIcon, ChartBarIcon, CalendarDaysIcon, ShareIcon, ChartPieIcon, Bars3Icon } from './components/icons';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { KanbanView } from './components/KanbanView';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
@@ -306,6 +305,7 @@ const App: React.FC = () => {
 
   // Global App State
   const [activeMainView, setActiveMainView] = useState<'workspace' | 'foundry' | 'orchestrator' | 'insights'>('workspace');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Intelligence Layer State
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -932,20 +932,31 @@ Based *only* on the information provided in the search results, answer the user'
             });
         }
         
-        const sendMessageWithRetry = async (retries = 1): Promise<any> => {
+        const sendMessageWithRetry = async (retries = 3, delay = 1000): Promise<any> => {
             try {
+                if (currentRequestId !== searchRequestController.current) {
+                    throw new Error("Stale request");
+                }
                 return await chatSessionRef.current!.sendMessageStream({ message });
-            } catch (error) {
+            } catch (error: any) {
+                if (error.message === "Stale request") {
+                    throw error;
+                }
+
                 console.warn(`Gemini API call failed. Retries left: ${retries}`, error);
-                if (retries > 0) {
-                    await new Promise(res => setTimeout(res, 500)); 
-                    return sendMessageWithRetry(retries - 1);
+                
+                const errorString = error.toString();
+                const isRateLimitError = errorString.includes('429') || errorString.includes('RESOURCE_EXHAUSTED');
+
+                if (retries > 0 && isRateLimitError) {
+                    await new Promise(res => setTimeout(res, delay)); 
+                    return sendMessageWithRetry(retries - 1, delay * 2);
                 }
                 throw error;
             }
         };
 
-        const responseStream = await sendMessageWithRetry(1);
+        const responseStream = await sendMessageWithRetry();
 
         let fullText = '';
         for await (const chunk of responseStream) {
@@ -956,14 +967,14 @@ Based *only* on the information provided in the search results, answer the user'
             setSynthesizedAnswer(fullText);
         }
     } catch (error: any) {
-        if (currentRequestId !== searchRequestController.current) {
+        if (currentRequestId !== searchRequestController.current || error.message === "Stale request") {
             return;
         }
         console.error("Error calling Gemini for search synthesis:", error);
         let errorMessage = "Sorry, I encountered an error trying to summarize the results.";
         const errorString = error.toString();
         if (errorString.includes('429') || errorString.includes('RESOURCE_EXHAUSTED')) {
-            errorMessage = "The AI is a bit busy right now. Please try again in a moment.";
+            errorMessage = "The AI is currently busy. Please try your search again in a moment.";
         }
         setSynthesizedAnswer(errorMessage);
     } finally {
@@ -1135,7 +1146,7 @@ Based *only* on the information provided in the search results, answer the user'
   const renderWorkspaceView = () => {
     if (!selectedProject) {
       return (
-        <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex items-center justify-center">
+        <main className="flex-grow flex items-center justify-center p-4">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white">No Project Selected</h2>
             <p className="mt-2 text-gray-400">Select a project from the sidebar, or create a new one to get started.</p>
@@ -1147,7 +1158,7 @@ Based *only* on the information provided in the search results, answer the user'
     if (activeContentType === 'doc') {
         if (activeDoc) {
             return (
-                 <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+                 <main className="flex-grow flex flex-col gap-6 overflow-hidden">
                     <DocEditor 
                         doc={activeDoc} 
                         prompts={prompts.filter(p => p.contextVariableName)}
@@ -1165,7 +1176,7 @@ Based *only* on the information provided in the search results, answer the user'
         const activeWhiteboard = whiteboards.find(w => w.id === activeWhiteboardId);
         if (activeWhiteboard) {
             return (
-                 <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+                 <main className="flex-grow flex flex-col gap-6 overflow-hidden">
                     <WhiteboardView
                         whiteboard={activeWhiteboard}
                         onSave={handleSaveWhiteboard}
@@ -1179,23 +1190,28 @@ Based *only* on the information provided in the search results, answer the user'
 
 
     return (
-      <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+      <main className="flex-grow flex flex-col gap-6 overflow-hidden">
         {/* Project Header */}
         <header className="flex-shrink-0">
-            <div className="flex justify-between items-center">
-                <div>
-                    <div className="text-sm text-gray-400">{selectedSpace?.name} /</div>
-                    <h1 className="text-3xl font-bold text-white">{selectedProject.name}</h1>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                <div className="flex items-center gap-2">
+                   <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-md hover:bg-gray-700 transition-colors md:hidden">
+                        <Bars3Icon />
+                    </button>
+                    <div>
+                        <div className="text-sm text-gray-400">{selectedSpace?.name} /</div>
+                        <h1 className="text-3xl font-bold text-white">{selectedProject.name}</h1>
+                    </div>
                 </div>
-                 <div className="flex items-center space-x-2">
+                 <div className="flex items-center space-x-2 mt-4 sm:mt-0 self-end sm:self-center">
                     <GlobalSearchBar onClick={() => setIsSearchModalOpen(true)} />
                     <button onClick={() => setIsProjectSettingsModalOpen(true)} className="p-2 rounded-md hover:bg-gray-700 transition-colors"><Cog6ToothIcon /></button>
                 </div>
             </div>
 
             {/* View switcher */}
-            <div className="mt-4 flex items-center justify-between">
-                <div className="flex items-center bg-gray-800/50 p-1 rounded-lg">
+            <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center bg-gray-800/50 p-1 rounded-lg flex-wrap">
                     <button onClick={() => setActiveView('table')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'table' ? 'bg-indigo-600' : ''}`}><TableCellsIcon /> Table</button>
                     <button onClick={() => setActiveView('kanban')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'kanban' ? 'bg-indigo-600' : ''}`}><ViewColumnsIcon /> Board</button>
                     <button onClick={() => setActiveView('timeline')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'timeline' ? 'bg-indigo-600' : ''}`}><ChartBarIcon /> Timeline</button>
@@ -1241,7 +1257,13 @@ Based *only* on the information provided in the search results, answer the user'
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     return (
-        <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+        <main className="flex-grow flex flex-col gap-6 overflow-y-auto">
+            <header className="flex-shrink-0 flex items-center gap-2">
+                <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-md hover:bg-gray-700 transition-colors md:hidden">
+                    <Bars3Icon />
+                </button>
+                <h1 className="text-3xl font-bold text-white">Insights</h1>
+            </header>
             <InsightsDashboard
                 insights={allInsights}
                 tasks={tasks}
@@ -1301,9 +1323,10 @@ Based *only* on the information provided in the search results, answer the user'
   };
 
   return (
-    <div className="h-screen w-screen bg-gray-900 text-gray-100 flex p-4 gap-4 font-sans">
-      <div className="w-1/3 lg:w-1/4 xl:w-1/5 flex-shrink-0">
-        {/* FIX: Pass missing whiteboard props to NavigationSidebar */}
+    <div className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col md:flex-row p-2 md:p-4 gap-2 md:gap-4 font-sans overflow-hidden">
+      {/* The div wrapper is now responsive and doesn't take space on mobile. */}
+      {/* The NavigationSidebar component itself handles being a fixed overlay on mobile and a static panel on desktop. */}
+      <div className="md:w-1/3 lg:w-1/4 xl:w-1/5 flex-shrink-0 md:h-full">
         <NavigationSidebar
           spaces={spaces}
           projects={projects}
@@ -1314,6 +1337,8 @@ Based *only* on the information provided in the search results, answer the user'
           activeDocId={activeDocId}
           activeWhiteboardId={activeWhiteboardId}
           activeMainView={activeMainView}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
           onSelectProject={handleSelectProject}
           onSelectDoc={handleSelectDoc}
           onSelectWhiteboard={handleSelectWhiteboard}

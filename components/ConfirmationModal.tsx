@@ -21,7 +21,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, on
       aria-labelledby="confirmation-dialog-title"
     >
       <div
-        className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md relative border border-gray-700"
+        className="bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md relative border border-gray-700"
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors" aria-label="Close">

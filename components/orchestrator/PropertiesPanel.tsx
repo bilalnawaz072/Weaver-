@@ -1,8 +1,10 @@
 import React from 'react';
-import { Node, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData, Project, HttpRequestNodeData, CreateTaskNodeData } from '../../types';
+import { Node, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData, Project, HttpRequestNodeData, CreateTaskNodeData, GitHubCreateIssueNodeData, SalesforceFindRecordNodeData } from '../../types';
 import { PromptNodeProperties } from './PromptNodeProperties';
 import { HttpRequestNodeProperties } from './HttpRequestNodeProperties';
 import { CreateTaskNodeProperties } from './CreateTaskNodeProperties';
+import { GitHubCreateIssueNodeProperties } from './GitHubCreateIssueNodeProperties';
+import { SalesforceFindRecordNodeProperties } from './SalesforceFindRecordNodeProperties';
 
 
 interface PropertiesPanelProps {
@@ -126,6 +128,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedNode, 
                 return <HttpRequestNodeProperties node={selectedNode as Node<HttpRequestNodeData>} onUpdate={handleUpdate} />;
             case NodeType.ToolCreateTask:
                 return <CreateTaskNodeProperties node={selectedNode as Node<CreateTaskNodeData>} projects={projects} onUpdate={handleUpdate} />;
+            case NodeType.IntegrationGitHubCreateIssue:
+                return <GitHubCreateIssueNodeProperties node={selectedNode as Node<GitHubCreateIssueNodeData>} onUpdate={handleUpdate} />;
+            case NodeType.IntegrationSalesforceFindRecord:
+                return <SalesforceFindRecordNodeProperties node={selectedNode as Node<SalesforceFindRecordNodeData>} onUpdate={handleUpdate} />;
             default:
                 return <p>Unknown node type selected.</p>;
         }

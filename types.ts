@@ -122,6 +122,8 @@ export enum NodeType {
   ActionPrompt = 'action-prompt',
   ToolHttpRequest = 'tool-http-request',
   ToolCreateTask = 'tool-create-task',
+  IntegrationGitHubCreateIssue = 'integration-github-create-issue',
+  IntegrationSalesforceFindRecord = 'integration-salesforce-find-record',
 }
 
 export interface BaseNodeData {
@@ -157,8 +159,19 @@ export interface CreateTaskNodeData extends BaseNodeData {
   description: string;
 }
 
+export interface GitHubCreateIssueNodeData extends BaseNodeData {
+    repository: string; // e.g., "owner/repo"
+    title: string;
+    body: string;
+}
 
-export type NodeData = ScheduleNodeData | ConditionNodeData | PromptNodeData | HttpRequestNodeData | CreateTaskNodeData;
+export interface SalesforceFindRecordNodeData extends BaseNodeData {
+    objectType: string;
+    query: string; // Simplified SOQL WHERE clause
+}
+
+
+export type NodeData = ScheduleNodeData | ConditionNodeData | PromptNodeData | HttpRequestNodeData | CreateTaskNodeData | GitHubCreateIssueNodeData | SalesforceFindRecordNodeData;
 
 export interface Node<T = NodeData> {
   id: string;

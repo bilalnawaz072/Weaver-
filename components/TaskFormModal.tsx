@@ -104,105 +104,109 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
 
   return (
     <div 
-        className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 transition-opacity duration-300"
+        className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 transition-opacity duration-300"
         onClick={onClose}
     >
       <div 
-        className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg relative border border-gray-700"
+        className="bg-gray-800 rounded-t-xl sm:rounded-xl shadow-2xl w-full max-w-lg relative border-t sm:border border-gray-700 max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
-          <XMarkIcon />
-        </button>
+        <div className="p-6 sm:p-8 flex-shrink-0">
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
+            <XMarkIcon />
+          </button>
 
-        <h2 className="text-2xl font-bold mb-6 text-white">{taskToEdit ? 'Edit Task' : 'Create New Task'}</h2>
+          <h2 className="text-2xl font-bold mb-6 text-white">{taskToEdit ? 'Edit Task' : 'Create New Task'}</h2>
+        </div>
         
-        {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md mb-4">{error}</p>}
-
-        <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-          {taskPrediction && (
-            <div className="bg-indigo-900/50 border border-indigo-700 p-3 rounded-md text-sm">
-                <div className="flex items-center gap-2">
-                    <SparklesIcon className="w-5 h-5 text-indigo-400 flex-shrink-0" />
-                    <p className="text-indigo-200">
-                        <strong>AI Prediction:</strong> This task will likely be completed by
-                        <strong className="ml-1">{new Date(taskPrediction.predictedValue.date!).toLocaleDateString()}</strong>.
-                    </p>
-                </div>
-            </div>
-          )}
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-1">Title</label>
-            <input
-              id="title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
-              placeholder="e.g., Design the new dashboard"
-            />
-          </div>
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1">Description</label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
-              placeholder="Add more details about the task..."
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div>
-                <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                <select
-                id="status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as Status)}
-                className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition appearance-none"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
-                >
-                {Object.values(Status).map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                ))}
-                </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleSubmit} className="flex-grow overflow-y-auto px-6 sm:px-8 pb-6">
+          <div className="space-y-6">
+            {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md mb-4">{error}</p>}
+            
+            {taskPrediction && (
+              <div className="bg-indigo-900/50 border border-indigo-700 p-3 rounded-md text-sm">
+                  <div className="flex items-center gap-2">
+                      <SparklesIcon className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+                      <p className="text-indigo-200">
+                          <strong>AI Prediction:</strong> This task will likely be completed by
+                          <strong className="ml-1">{new Date(taskPrediction.predictedValue.date!).toLocaleDateString()}</strong>.
+                      </p>
+                  </div>
+              </div>
+            )}
             <div>
-              <label htmlFor="startDate" className="block text-sm font-medium text-gray-300 mb-1">Start Date</label>
+              <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-1">Title</label>
               <input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                id="title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                placeholder="e.g., Design the new dashboard"
               />
             </div>
             <div>
-              <label htmlFor="dueDate" className="block text-sm font-medium text-gray-300 mb-1">Due Date</label>
-              <input
-                id="dueDate"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                placeholder="Add more details about the task..."
               />
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                  <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                  <select
+                  id="status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as Status)}
+                  className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition appearance-none"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
+                  >
+                  {Object.values(Status).map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                  ))}
+                  </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="startDate" className="block text-sm font-medium text-gray-300 mb-1">Start Date</label>
+                <input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                />
+              </div>
+              <div>
+                <label htmlFor="dueDate" className="block text-sm font-medium text-gray-300 mb-1">Due Date</label>
+                <input
+                  id="dueDate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-600 rounded-md p-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                />
+              </div>
+            </div>
+
+
+            {customFieldDefinitions.length > 0 && <hr className="border-gray-600" />}
+
+            {customFieldDefinitions.map(field => (
+              <div key={field.id}>
+                <label className="block text-sm font-medium text-gray-300 mb-1">{field.name}</label>
+                {renderCustomFieldInput(field)}
+              </div>
+            ))}
           </div>
 
-
-          {customFieldDefinitions.length > 0 && <hr className="border-gray-600" />}
-
-          {customFieldDefinitions.map(field => (
-            <div key={field.id}>
-              <label className="block text-sm font-medium text-gray-300 mb-1">{field.name}</label>
-              {renderCustomFieldInput(field)}
-            </div>
-          ))}
-
-          <div className="flex justify-end pt-4 space-x-4">
+          <div className="flex justify-end pt-6 space-x-4 sticky bottom-0 bg-gray-800 py-4 -mx-6 sm:-mx-8 px-6 sm:px-8">
             <button
               type="button"
               onClick={onClose}

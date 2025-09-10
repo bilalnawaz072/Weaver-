@@ -40,11 +40,11 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({ isOpen, onCl
 
   return (
     <div 
-        className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 transition-opacity duration-300"
+        className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 transition-opacity duration-300"
         onClick={onClose}
     >
       <div 
-        className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg relative border border-gray-700"
+        className="bg-gray-800 p-6 sm:p-8 rounded-t-xl sm:rounded-xl shadow-2xl w-full max-w-lg relative border-t sm:border border-gray-700"
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">

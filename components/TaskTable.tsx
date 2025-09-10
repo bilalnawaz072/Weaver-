@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Task, Status, TaskSortKey, CustomFieldDefinition, CustomFieldType } from '../types';
 import { EditIcon, TrashIcon, ChevronUpDownIcon, PlusIcon, ArrowUturnDownIcon, TableCellsIcon } from './icons';
+import { TaskRowCard } from './TaskRowCard';
 
 type TaskWithLevel = Task & { level: number };
 
@@ -142,6 +143,15 @@ export const TaskTable: React.FC<TaskTableProps> = (props) => {
     }
   };
 
+  const renderEmptyState = () => (
+    <div className="px-6 py-16 text-center text-gray-400">
+        <div className="text-center">
+        <h3 className="text-lg font-semibold text-white">No Tasks Here</h3>
+        <p className="mt-1 text-sm text-gray-500">This project doesn't have any tasks yet. Create one to get started!</p>
+        </div>
+    </div>
+  );
+
   return (
     <div className="bg-gray-800/50 rounded-lg shadow-lg overflow-hidden border border-gray-700 flex-grow flex flex-col">
        <div className="p-4 bg-gray-800 flex justify-end">
@@ -153,7 +163,8 @@ export const TaskTable: React.FC<TaskTableProps> = (props) => {
           />
         </div>
       <div className="overflow-y-auto">
-        <table className="min-w-full divide-y divide-gray-700">
+        {/* Desktop Table View */}
+        <table className="hidden md:table min-w-full divide-y divide-gray-700">
           <thead className="bg-gray-800 sticky top-0 z-10">
             <tr>
               {visibleColumns.map(key => {
@@ -172,11 +183,8 @@ export const TaskTable: React.FC<TaskTableProps> = (props) => {
           <tbody className="bg-gray-800 divide-y divide-gray-700">
             {tasks.length === 0 ? (
               <tr>
-                <td colSpan={visibleColumns.length + 1} className="px-6 py-16 text-center text-gray-400">
-                   <div className="text-center">
-                    <h3 className="text-lg font-semibold text-white">No Tasks Here</h3>
-                    <p className="mt-1 text-sm text-gray-500">This project doesn't have any tasks yet. Create one to get started!</p>
-                  </div>
+                <td colSpan={visibleColumns.length + 1}>
+                   {renderEmptyState()}
                 </td>
               </tr>
             ) : (
@@ -205,6 +213,23 @@ export const TaskTable: React.FC<TaskTableProps> = (props) => {
             )}
           </tbody>
         </table>
+
+         {/* Mobile Card View */}
+         <div className="block md:hidden">
+            {tasks.length === 0 ? renderEmptyState() : (
+                 <div className="p-2 space-y-2">
+                    {tasks.map(task => (
+                        <TaskRowCard 
+                            key={task.id}
+                            task={task}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onAddSubtask={onAddSubtask}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
       </div>
     </div>
   );

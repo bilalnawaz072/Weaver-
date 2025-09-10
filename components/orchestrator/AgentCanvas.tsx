@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Workflow, WorkflowDefinition, Node, Edge, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData, Project, HttpRequestNodeData, CreateTaskNodeData } from '../../types';
+import { Workflow, WorkflowDefinition, Node, Edge, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData, Project, HttpRequestNodeData, CreateTaskNodeData, GitHubCreateIssueNodeData, SalesforceFindRecordNodeData } from '../../types';
 import { NodeLibrary } from './NodeLibrary';
 import { PropertiesPanel } from './PropertiesPanel';
 import { ChevronLeftIcon } from '../icons';
@@ -8,6 +8,8 @@ import { ConditionNode } from './nodes/ConditionNode';
 import { PromptNode } from './nodes/PromptNode';
 import { HttpRequestNode } from './nodes/HttpRequestNode';
 import { CreateTaskNode } from './nodes/CreateTaskNode';
+import { GitHubCreateIssueNode } from './nodes/GitHubCreateIssueNode';
+import { SalesforceFindRecordNode } from './nodes/SalesforceFindRecordNode';
 
 interface AgentCanvasProps {
     workflow: Workflow;
@@ -67,6 +69,12 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, pro
                 break;
             case NodeType.ToolCreateTask:
                 newNodeData = { label: 'Create Task', projectId: null, title: '', description: '' } as CreateTaskNodeData;
+                break;
+            case NodeType.IntegrationGitHubCreateIssue:
+                newNodeData = { label: 'Create GitHub Issue', repository: '', title: '', body: '' } as GitHubCreateIssueNodeData;
+                break;
+            case NodeType.IntegrationSalesforceFindRecord:
+                newNodeData = { label: 'Find Salesforce Record', objectType: '', query: '' } as SalesforceFindRecordNodeData;
                 break;
             default:
                 return;
@@ -267,6 +275,32 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, pro
                                         key={node.id}
                                         ref={(el: HTMLDivElement) => { if(el) nodeRefs.current[node.id] = el }}
                                         node={node as Node<CreateTaskNodeData>}
+                                        onDrag={handleNodeDrag}
+                                        onSelect={() => setSelectedNodeId(node.id)}
+                                        isSelected={selectedNodeId === node.id}
+                                        onStartConnection={handleStartConnection}
+                                        onFinishConnection={handleFinishConnection}
+                                    />
+                                );
+                            case NodeType.IntegrationGitHubCreateIssue:
+                                return (
+                                    <GitHubCreateIssueNode
+                                        key={node.id}
+                                        ref={(el: HTMLDivElement) => { if(el) nodeRefs.current[node.id] = el }}
+                                        node={node as Node<GitHubCreateIssueNodeData>}
+                                        onDrag={handleNodeDrag}
+                                        onSelect={() => setSelectedNodeId(node.id)}
+                                        isSelected={selectedNodeId === node.id}
+                                        onStartConnection={handleStartConnection}
+                                        onFinishConnection={handleFinishConnection}
+                                    />
+                                );
+                            case NodeType.IntegrationSalesforceFindRecord:
+                                return (
+                                    <SalesforceFindRecordNode
+                                        key={node.id}
+                                        ref={(el: HTMLDivElement) => { if(el) nodeRefs.current[node.id] = el }}
+                                        node={node as Node<SalesforceFindRecordNodeData>}
                                         onDrag={handleNodeDrag}
                                         onSelect={() => setSelectedNodeId(node.id)}
                                         isSelected={selectedNodeId === node.id}

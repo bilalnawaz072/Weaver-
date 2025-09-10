@@ -67,7 +67,7 @@ export const SearchResultsModal: React.FC<SearchResultsModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-start pt-20 p-4 transition-opacity duration-300"
+      className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-start pt-12 sm:pt-20 p-4 transition-opacity duration-300"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -98,7 +98,7 @@ export const SearchResultsModal: React.FC<SearchResultsModalProps> = ({
                 </div>
             )}
             
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
                 {isSearching && results.length === 0 && !synthesizedAnswer && <p className="text-gray-400 text-center py-4">Searching...</p>}
                 {!isSearching && query && results.length === 0 && <p className="text-gray-400 text-center py-4">No results found for "{query}"</p>}
                 {!query && <p className="text-gray-400 text-center py-4">Start typing to search your workspace.</p>}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, Space, Doc, Whiteboard } from '../types';
-import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon, BeakerIcon, CpuChipIcon, LightBulbIcon, ViewfinderCircleIcon } from './icons';
+import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon, BeakerIcon, CpuChipIcon, LightBulbIcon, ViewfinderCircleIcon, XMarkIcon } from './icons';
 import { ProjectHealthIndicator } from './intelligence/ai-pm/ProjectHealthIndicator';
 
 interface NavigationSidebarProps {
@@ -13,6 +13,8 @@ interface NavigationSidebarProps {
   activeDocId: string | null;
   activeWhiteboardId: string | null;
   activeMainView: 'workspace' | 'foundry' | 'orchestrator' | 'insights';
+  isOpen: boolean;
+  onClose: () => void;
   onSelectProject: (id: string) => void;
   onSelectDoc: (id: string) => void;
   onSelectWhiteboard: (id: string) => void;
@@ -37,6 +39,7 @@ const ProjectItem: React.FC<{
     activeContentType: 'tasks' | 'doc' | 'whiteboard';
     activeDocId: string | null;
     activeWhiteboardId: string | null;
+    onCloseSidebar: () => void;
     onSelectProject: (id: string) => void;
     onSelectDoc: (id: string) => void;
     onSelectWhiteboard: (id: string) => void;
@@ -47,8 +50,13 @@ const ProjectItem: React.FC<{
     onCreateWhiteboard: (projectId: string) => void;
     onDeleteWhiteboard: (id: string) => void;
 }> = (props) => {
-    const { project, docs, whiteboards, selectedProjectId, activeContentType, activeDocId, activeWhiteboardId, onSelectProject, onSelectDoc, onSelectWhiteboard, onEditProject, onDeleteProject, onCreateDoc, onDeleteDoc, onCreateWhiteboard, onDeleteWhiteboard } = props;
+    const { project, docs, whiteboards, selectedProjectId, activeContentType, activeDocId, activeWhiteboardId, onCloseSidebar, onSelectProject, onSelectDoc, onSelectWhiteboard, onEditProject, onDeleteProject, onCreateDoc, onDeleteDoc, onCreateWhiteboard, onDeleteWhiteboard } = props;
     const isProjectActive = selectedProjectId === project.id;
+
+    const handleSelection = (callback: () => void) => {
+        callback();
+        onCloseSidebar();
+    };
     
     return (
         <li className="space-y-1">
@@ -70,8 +78,8 @@ const ProjectItem: React.FC<{
                     <div
                         role="button"
                         tabIndex={0}
-                        onClick={() => onSelectProject(project.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectProject(project.id); }}
+                        onClick={() => handleSelection(() => onSelectProject(project.id))}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelection(() => onSelectProject(project.id)); }}
                         className={`group flex items-center justify-between w-full p-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
                             isProjectActive && activeContentType === 'tasks'
                                 ? 'bg-indigo-600 text-white'
@@ -95,8 +103,8 @@ const ProjectItem: React.FC<{
                             key={doc.id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => onSelectDoc(doc.id)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectDoc(doc.id); }}
+                            onClick={() => handleSelection(() => onSelectDoc(doc.id))}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelection(() => onSelectDoc(doc.id)); }}
                             className={`group flex items-center justify-between w-full p-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
                                 activeDocId === doc.id
                                 ? 'bg-indigo-600 text-white'
@@ -124,8 +132,8 @@ const ProjectItem: React.FC<{
                             key={wb.id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => onSelectWhiteboard(wb.id)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectWhiteboard(wb.id); }}
+                            onClick={() => handleSelection(() => onSelectWhiteboard(wb.id))}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelection(() => onSelectWhiteboard(wb.id)); }}
                             className={`group flex items-center justify-between w-full p-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
                                 activeWhiteboardId === wb.id
                                 ? 'bg-indigo-600 text-white'
@@ -182,95 +190,104 @@ const SpaceItem: React.FC<{
 };
 
 export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
-  const { spaces, projects, docs, whiteboards, activeMainView, onSetActiveMainView, ...rest } = props;
+  const { spaces, projects, docs, whiteboards, activeMainView, isOpen, onClose, onSetActiveMainView, ...rest } = props;
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 h-full flex flex-col">
-      <div className="flex flex-col gap-4 mb-4 flex-shrink-0">
-         <div className="flex items-center p-1 rounded-lg bg-gray-900/50 flex-wrap">
-            <button
-              onClick={() => onSetActiveMainView('workspace')}
-              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'workspace' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-              aria-pressed={activeMainView === 'workspace'}
-            >
-              <Squares2X2Icon className="w-5 h-5" />
-              <span>Workspace</span>
-            </button>
-            <button
-              onClick={() => onSetActiveMainView('insights')}
-              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'insights' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-              aria-pressed={activeMainView === 'insights'}
-            >
-              <LightBulbIcon className="w-5 h-5" />
-              <span>Insights</span>
-            </button>
-            <button
-              onClick={() => onSetActiveMainView('foundry')}
-              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'foundry' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-              aria-pressed={activeMainView === 'foundry'}
-            >
-              <BeakerIcon className="w-5 h-5" />
-              <span>Foundry</span>
-            </button>
-            <button
-              onClick={() => onSetActiveMainView('orchestrator')}
-              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'orchestrator' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-              aria-pressed={activeMainView === 'orchestrator'}
-            >
-              <CpuChipIcon className="w-5 h-5" />
-              <span>Orchestrator</span>
-            </button>
-        </div>
+    <>
+        {/* Backdrop for mobile */}
+        {isOpen && <div onClick={onClose} className="fixed inset-0 bg-black/60 z-30 md:hidden" />}
 
-        {activeMainView === 'workspace' && (
-            <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-2">
-                    <h2 className="text-xl font-bold text-white">Spaces</h2>
-                </div>
-                <button
-                onClick={props.onCreateSpace}
-                className="p-2 rounded-md hover:bg-gray-700 transition-colors"
-                aria-label="Create new space"
-                >
-                <PlusIcon className="w-5 h-5" />
+        <div className={`fixed inset-y-0 left-0 z-40 w-4/5 max-w-sm md:relative md:w-full md:max-w-none md:inset-auto md:z-auto bg-gray-800/50 border-r border-gray-700 rounded-r-lg md:rounded-lg transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 p-4 h-full flex flex-col`}>
+            <div className="flex flex-col gap-4 mb-4 flex-shrink-0">
+                <button onClick={onClose} className="absolute top-3 right-3 md:hidden p-1 text-gray-400 hover:text-white">
+                    <XMarkIcon />
                 </button>
-            </div>
-        )}
-      </div>
-      
-      <nav className="flex-grow overflow-y-auto -mr-2 pr-2">
-        {activeMainView === 'workspace' && (
-            <>
-                {spaces.length === 0 ? (
-                    <div className="text-center text-gray-400 py-10">
-                        <p>No spaces yet. Create one to get started!</p>
-                    </div>
-                ) : (
-                <ul className="space-y-2">
-                {spaces.map(space => (
-                    <SpaceItem 
-                        key={space.id} 
-                        space={space}
-                        onEdit={() => props.onEditSpace(space)}
-                        onDelete={() => props.onDeleteSpace(space.id)}
-                        onAddProject={() => props.onCreateProject(space.id)}
+                <div className="flex items-center p-1 rounded-lg bg-gray-900/50 flex-wrap">
+                    <button
+                    onClick={() => onSetActiveMainView('workspace')}
+                    className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'workspace' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+                    aria-pressed={activeMainView === 'workspace'}
                     >
-                    {projects.filter(p => p.spaceId === space.id).map(project => (
-                        <ProjectItem
-                            key={project.id}
-                            project={project}
-                            docs={docs.filter(d => d.projectId === project.id)}
-                            whiteboards={whiteboards.filter(wb => wb.projectId === project.id)}
-                            {...rest}
-                        />
-                    ))}
-                    </SpaceItem>
-                ))}
-                </ul>
+                    <Squares2X2Icon className="w-5 h-5" />
+                    <span>Workspace</span>
+                    </button>
+                    <button
+                    onClick={() => onSetActiveMainView('insights')}
+                    className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'insights' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+                    aria-pressed={activeMainView === 'insights'}
+                    >
+                    <LightBulbIcon className="w-5 h-5" />
+                    <span>Insights</span>
+                    </button>
+                    <button
+                    onClick={() => onSetActiveMainView('foundry')}
+                    className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'foundry' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+                    aria-pressed={activeMainView === 'foundry'}
+                    >
+                    <BeakerIcon className="w-5 h-5" />
+                    <span>Foundry</span>
+                    </button>
+                    <button
+                    onClick={() => onSetActiveMainView('orchestrator')}
+                    className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'orchestrator' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+                    aria-pressed={activeMainView === 'orchestrator'}
+                    >
+                    <CpuChipIcon className="w-5 h-5" />
+                    <span>Orchestrator</span>
+                    </button>
+                </div>
+
+                {activeMainView === 'workspace' && (
+                    <div className="flex justify-between items-center">
+                        <div className="flex items-center space-x-2">
+                            <h2 className="text-xl font-bold text-white">Spaces</h2>
+                        </div>
+                        <button
+                        onClick={props.onCreateSpace}
+                        className="p-2 rounded-md hover:bg-gray-700 transition-colors"
+                        aria-label="Create new space"
+                        >
+                        <PlusIcon className="w-5 h-5" />
+                        </button>
+                    </div>
                 )}
-            </>
-        )}
-      </nav>
-    </div>
+            </div>
+            
+            <nav className="flex-grow overflow-y-auto -mr-2 pr-2">
+                {activeMainView === 'workspace' && (
+                    <>
+                        {spaces.length === 0 ? (
+                            <div className="text-center text-gray-400 py-10">
+                                <p>No spaces yet. Create one to get started!</p>
+                            </div>
+                        ) : (
+                        <ul className="space-y-2">
+                        {spaces.map(space => (
+                            <SpaceItem 
+                                key={space.id} 
+                                space={space}
+                                onEdit={() => props.onEditSpace(space)}
+                                onDelete={() => props.onDeleteSpace(space.id)}
+                                onAddProject={() => props.onCreateProject(space.id)}
+                            >
+                            {projects.filter(p => p.spaceId === space.id).map(project => (
+                                <ProjectItem
+                                    key={project.id}
+                                    project={project}
+                                    docs={docs.filter(d => d.projectId === project.id)}
+                                    whiteboards={whiteboards.filter(wb => wb.projectId === project.id)}
+                                    onCloseSidebar={onClose}
+                                    {...rest}
+                                />
+                            ))}
+                            </SpaceItem>
+                        ))}
+                        </ul>
+                        )}
+                    </>
+                )}
+            </nav>
+        </div>
+    </>
   );
 };

@@ -7,6 +7,8 @@ const libraryItems = [
     { type: NodeType.ActionPrompt, name: 'Prompt', description: 'Executes an AI prompt.', category: 'Actions' },
     { type: NodeType.ToolHttpRequest, name: 'HTTP Request', description: 'Call an external API or webhook.', category: 'Tools' },
     { type: NodeType.ToolCreateTask, name: 'Create Task', description: 'Create a new task in Weaver.', category: 'Tools' },
+    { type: NodeType.IntegrationGitHubCreateIssue, name: 'Create Issue', description: 'Create a new GitHub issue.', category: 'GitHub' },
+    { type: NodeType.IntegrationSalesforceFindRecord, name: 'Find Record', description: 'Find a record in Salesforce.', category: 'Salesforce' },
 ];
 
 const DraggableNode: React.FC<{ item: typeof libraryItems[0] }> = ({ item }) => {

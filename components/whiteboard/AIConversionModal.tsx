@@ -32,22 +32,22 @@ export const AIConversionModal: React.FC<AIConversionModalProps> = ({
 
     return (
         <div
-            className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"
+            className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4"
             onClick={onClose}
         >
             <div
-                className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-2xl relative border border-gray-700 flex flex-col"
+                className="bg-gray-800 p-6 sm:p-8 rounded-t-xl sm:rounded-xl shadow-2xl w-full max-w-2xl relative border-t sm:border border-gray-700 flex flex-col max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()}
             >
                 <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
                     <XMarkIcon />
                 </button>
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3 mb-4 flex-shrink-0">
                     <SparklesIcon className="w-6 h-6 text-indigo-400" />
                     <h2 className="text-2xl font-bold text-white">Convert Ideas to Tasks</h2>
                 </div>
                 
-                <div className="max-h-[60vh] overflow-y-auto pr-4 -mr-4">
+                <div className="flex-grow overflow-y-auto pr-2">
                     {isLoading && (
                         <div className="flex flex-col items-center justify-center text-center p-10">
                             <SparklesIcon className="w-12 h-12 text-indigo-400 animate-pulse mb-4" />
@@ -78,7 +78,7 @@ export const AIConversionModal: React.FC<AIConversionModalProps> = ({
                     )}
                 </div>
 
-                <div className="flex justify-end pt-6 space-x-4 mt-auto">
+                <div className="flex justify-end pt-6 space-x-4 mt-auto flex-shrink-0">
                     <button
                         type="button"
                         onClick={onClose}

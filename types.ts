@@ -16,6 +16,7 @@ export interface Project {
   spaceId: string;
   name: string;
   description: string;
+  mindMapData?: any;
   createdAt: Date;
   updatedAt: Date;
 }

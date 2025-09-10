@@ -5,7 +5,7 @@ import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
 import { ProjectFormModal } from './components/ProjectFormModal';
 import { SpaceFormModal } from './components/SpaceFormModal';
-import { PlusIcon, TableCellsIcon, ViewColumnsIcon, Cog6ToothIcon, DocumentTextIcon, ChartBarIcon, CalendarDaysIcon } from './components/icons';
+import { PlusIcon, TableCellsIcon, ViewColumnsIcon, Cog6ToothIcon, DocumentTextIcon, ChartBarIcon, CalendarDaysIcon, ShareIcon, ChartPieIcon } from './components/icons';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { KanbanView } from './components/KanbanView';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
@@ -13,6 +13,8 @@ import { DocEditor } from './components/DocEditor';
 import { TimelineView } from './components/TimelineView';
 import { CalendarView } from './components/CalendarView';
 import { FoundryView } from './components/foundry/FoundryView';
+import { MindMapView } from './components/MindMapView';
+import { GraphView } from './components/GraphView';
 import { GoogleGenAI } from "@google/genai";
 
 const initialSpaces: Space[] = [
@@ -21,9 +23,9 @@ const initialSpaces: Space[] = [
 ];
 
 const initialProjects: Project[] = [
-  { id: 'proj-1', spaceId: 'space-1', name: 'Weaver App Development', description: 'Core development tasks for the Weaver application.', createdAt: new Date(2023, 10, 1), updatedAt: new Date(2023, 10, 1) },
-  { id: 'proj-2', spaceId: 'space-2', name: 'Q1 Marketing', description: 'Marketing campaigns for the first quarter.', createdAt: new Date(2023, 10, 2), updatedAt: new Date(2023, 10, 2) },
-  { id: 'proj-3', spaceId: 'space-1', name: 'API Integration', description: 'Integrating third-party APIs.', createdAt: new Date(2023, 10, 5), updatedAt: new Date(2023, 10, 5) },
+  { id: 'proj-1', spaceId: 'space-1', name: 'Weaver App Development', description: 'Core development tasks for the Weaver application.', mindMapData: null, createdAt: new Date(2023, 10, 1), updatedAt: new Date(2023, 10, 1) },
+  { id: 'proj-2', spaceId: 'space-2', name: 'Q1 Marketing', description: 'Marketing campaigns for the first quarter.', mindMapData: null, createdAt: new Date(2023, 10, 2), updatedAt: new Date(2023, 10, 2) },
+  { id: 'proj-3', spaceId: 'space-1', name: 'API Integration', description: 'Integrating third-party APIs.', mindMapData: null, createdAt: new Date(2023, 10, 5), updatedAt: new Date(2023, 10, 5) },
 ];
 
 const initialTasks: Task[] = [
@@ -123,6 +125,19 @@ const getUpdatedTasksWithPropagation = (
     return Array.from(tasksMap.values());
 };
 
+// FIX: Define types for graph data to satisfy GraphView component props.
+interface GraphNode {
+    id: string;
+    label: string;
+    type: 'task' | 'doc';
+}
+
+interface GraphEdge {
+    source: string;
+    target: string;
+    type: string;
+}
+
 const App: React.FC = () => {
   // Workspace State
   const [spaces, setSpaces] = useState<Space[]>(initialSpaces);
@@ -133,7 +148,7 @@ const App: React.FC = () => {
   const [customFieldValues, setCustomFieldValues] = useState<CustomFieldValue[]>(initialCustomFieldValues);
   
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'table' | 'kanban' | 'timeline' | 'calendar'>('table');
+  const [activeView, setActiveView] = useState<'table' | 'kanban' | 'timeline' | 'calendar' | 'mindmap' | 'graph'>('table');
   const [activeContentType, setActiveContentType] = useState<'tasks' | 'doc'>('tasks');
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   
@@ -198,6 +213,12 @@ const App: React.FC = () => {
     if (!selectedProjectId) return [];
     return tasks.filter(task => task.projectId === selectedProjectId);
   }, [tasks, selectedProjectId]);
+  
+  const docsForSelectedProject = useMemo(() => {
+    if (!selectedProjectId) return [];
+    return docs.filter(doc => doc.projectId === selectedProjectId);
+  }, [docs, selectedProjectId]);
+
 
   const customFieldDefinitionsForProject = useMemo(() => {
     if (!selectedProjectId) return [];
@@ -284,12 +305,29 @@ const App: React.FC = () => {
     };
     return sortTasks(taskTree, 0);
   }, [taskTree, sortConfig]);
+  
+  const graphDataForSelectedProject = useMemo<{ nodes: GraphNode[], edges: GraphEdge[] }>(() => {
+    if (!selectedProjectId) return { nodes: [], edges: [] };
+
+    const nodes: GraphNode[] = [
+        ...tasksForSelectedProject.map(t => ({ id: t.id, label: t.title, type: 'task' as const })),
+        ...docsForSelectedProject.map(d => ({ id: d.id, label: d.title, type: 'doc' as const })),
+    ];
+
+    const edges: GraphEdge[] = tasksForSelectedProject
+        .filter(t => t.parentTaskId && tasksForSelectedProject.some(p => p.id === t.parentTaskId))
+        .map(t => ({ source: t.parentTaskId!, target: t.id, type: 'subtask' }));
+    
+    return { nodes, edges };
+  }, [selectedProjectId, tasksForSelectedProject, docsForSelectedProject]);
+
 
   // Navigation Handlers
   const handleSelectProject = (projectId: string) => {
     setSelectedProjectId(projectId);
     setActiveContentType('tasks');
     setActiveDocId(null);
+    setActiveView('table');
   };
   const handleSelectDoc = (docId: string) => {
     const doc = docs.find(d => d.id === docId);
@@ -326,7 +364,7 @@ const App: React.FC = () => {
     if (projectToEdit) {
       setProjects(projects.map(p => p.id === projectToEdit.id ? { ...p, ...data, updatedAt: new Date() } : p));
     } else if (spaceIdForNewProject) {
-      const newProject: Project = { id: crypto.randomUUID(), spaceId: spaceIdForNewProject, ...data, createdAt: new Date(), updatedAt: new Date() };
+      const newProject: Project = { id: crypto.randomUUID(), spaceId: spaceIdForNewProject, ...data, mindMapData: null, createdAt: new Date(), updatedAt: new Date() };
       setProjects([...projects, newProject]);
       handleSelectProject(newProject.id); // Select new project
     }
@@ -608,6 +646,62 @@ const App: React.FC = () => {
     );
   };
 
+  // Mind Map Handlers
+  const handleSaveMindMap = (projectId: string, mindMapData: any) => {
+    setProjects(projects => projects.map(p => 
+        p.id === projectId ? { ...p, mindMapData, updatedAt: new Date() } : p
+    ));
+  };
+
+  const handleConvertMindMapToTasks = (projectId: string) => {
+      const project = projects.find(p => p.id === projectId);
+      if (!project || !project.mindMapData) return;
+
+      const { nodes, edges } = project.mindMapData;
+      if (!nodes || nodes.length === 0) return;
+
+      const newTasks: Task[] = [];
+      
+      const nodesMap = new Map(nodes.map((n: any) => [n.id, n]));
+      const allTargetIds = new Set(edges.map((e: any) => e.target));
+      const rootMindMapNodes = nodes.filter((n: any) => !allTargetIds.has(n.id));
+
+      const traverseAndCreate = (node: any, parentTaskId: string | null) => {
+          const newTask: Task = {
+              id: crypto.randomUUID(),
+              projectId,
+              parentTaskId,
+              title: node.data.label,
+              description: '',
+              status: Status.Todo,
+              startDate: null,
+              dueDate: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+          };
+          newTasks.push(newTask);
+
+          const childrenEdges = edges.filter((e: any) => e.source === node.id);
+          for (const edge of childrenEdges) {
+              const childNode = nodesMap.get(edge.target);
+              if (childNode) {
+                  traverseAndCreate(childNode, newTask.id);
+              }
+          }
+      };
+
+      for (const rootNode of rootMindMapNodes) {
+          traverseAndCreate(rootNode, null);
+      }
+      
+      if (newTasks.length > 0) {
+        setTasks(prevTasks => [...prevTasks, ...newTasks]);
+        // Clear mind map after conversion
+        handleSaveMindMap(projectId, null); 
+        setActiveView('table');
+      }
+  };
+
   const renderActiveView = () => {
     switch(activeView) {
       case 'table':
@@ -634,6 +728,15 @@ const App: React.FC = () => {
         return <TimelineView tasks={tasksForSelectedProject} />;
       case 'calendar':
         return <CalendarView tasks={tasksForSelectedProject} />;
+      case 'mindmap':
+        return selectedProject ? <MindMapView
+            key={selectedProject.id}
+            project={selectedProject}
+            onSave={handleSaveMindMap}
+            onConvertToTasks={handleConvertMindMapToTasks}
+        /> : null;
+      case 'graph':
+        return <GraphView data={graphDataForSelectedProject} />;
       default:
         return null;
     }
@@ -678,6 +781,8 @@ const App: React.FC = () => {
                         <button onClick={() => setActiveView('kanban')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'kanban' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'kanban'} aria-label="Kanban View" ><ViewColumnsIcon /></button>
                         <button onClick={() => setActiveView('timeline')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'timeline' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'timeline'} aria-label="Timeline View" ><ChartBarIcon /></button>
                         <button onClick={() => setActiveView('calendar')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'calendar'} aria-label="Calendar View" ><CalendarDaysIcon /></button>
+                        <button onClick={() => setActiveView('mindmap')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'mindmap' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'mindmap'} aria-label="Mind Map View" ><ShareIcon /></button>
+                        <button onClick={() => setActiveView('graph')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'graph' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'graph'} aria-label="Graph View" ><ChartPieIcon /></button>
                       </div>
                       <div className="relative">
                           <button

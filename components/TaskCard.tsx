@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Task, Status, CustomFieldDefinition, CustomFieldType } from '../types';
-import { ArrowUturnDownIcon, ChevronDownIcon, ChevronRightIcon } from './icons';
+import { Task, Status, CustomFieldDefinition, CustomFieldType, Prediction, PredictionType } from '../types';
+import { ArrowUturnDownIcon, ChevronDownIcon, ChevronRightIcon, ExclamationTriangleIcon } from './icons';
 import { KanbanTask } from './KanbanView';
 
 interface TaskCardProps {
@@ -10,6 +10,7 @@ interface TaskCardProps {
         value: any;
     }[];
   };
+  prediction?: Prediction;
 }
 
 const statusIndicatorColors: { [key in Status]: string } = {
@@ -28,7 +29,7 @@ const StatusIndicator: React.FC<{ status: Status }> = ({ status }) => (
     <div className={`w-2 h-2 rounded-full mr-2.5 flex-shrink-0 ${statusIndicatorColors[status]}`} />
 );
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
+export const TaskCard: React.FC<TaskCardProps> = ({ task, prediction }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
@@ -46,13 +47,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
   const isDone = task.status === Status.Done;
   const hasCustomFields = task.customFields && task.customFields.length > 0;
   const hasDates = task.startDate || task.dueDate;
+  const isPredictedLate = prediction?.type === PredictionType.CompletionDate && task.dueDate && new Date(prediction.predictedValue.date!) > task.dueDate;
 
   return (
     <div
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      className={`bg-gray-800 p-4 rounded-lg shadow-md border-2 border-gray-700 cursor-grab active:cursor-grabbing transition-all duration-150 flex flex-col gap-3 ${isDone ? 'opacity-70' : ''}`}
+      className={`bg-gray-800 p-4 rounded-lg shadow-md border-2 cursor-grab active:cursor-grabbing transition-all duration-150 flex flex-col gap-3 ${isDone ? 'opacity-70' : ''} ${isPredictedLate ? 'border-yellow-500' : 'border-gray-700'}`}
       aria-roledescription={`Draggable task card for ${task.title}`}
     >
         <div>
@@ -63,6 +65,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
           <p className={`text-sm text-gray-400 mt-1 break-words transition-colors ${isDone ? 'line-through' : ''}`}>{task.description || 'No description'}</p>
         </div>
         
+        {isPredictedLate && (
+            <div className="text-xs text-yellow-400 flex items-center gap-2">
+                <ExclamationTriangleIcon className="w-4 h-4" />
+                <span>Predicted to miss due date</span>
+            </div>
+        )}
+
         {hasDates && (
             <div className="text-xs text-gray-400 flex items-center gap-2">
                 <span>🗓️</span>

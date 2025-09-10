@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Status, CustomFieldDefinition } from '../types';
+import { Status, CustomFieldDefinition, Prediction } from '../types';
 import { TaskCard } from './TaskCard';
 import { KanbanTask } from './KanbanView';
 
@@ -16,6 +16,7 @@ interface KanbanColumnProps {
   status: Status;
   tasks: ColumnTask[];
   onDropTask: (taskId: string, newStatus: Status) => void;
+  predictions: Prediction[];
 }
 
 const statusColors: { [key in Status]: string } = {
@@ -24,7 +25,7 @@ const statusColors: { [key in Status]: string } = {
   [Status.Done]: 'border-t-green-500',
 };
 
-export const KanbanColumn: React.FC<KanbanColumnProps> = ({ status, tasks, onDropTask }) => {
+export const KanbanColumn: React.FC<KanbanColumnProps> = ({ status, tasks, onDropTask, predictions }) => {
   const [isOver, setIsOver] = useState(false);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -68,7 +69,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ status, tasks, onDro
       </div>
       <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
         {tasks.length > 0 ? (
-          tasks.map(task => <TaskCard key={task.id} task={task} />)
+          tasks.map(task => <TaskCard key={task.id} task={task} prediction={predictions.find(p => p.entityId === task.id)} />)
         ) : (
           <div className="flex-grow flex items-center justify-center text-center text-gray-500 py-4 border-2 border-dashed border-gray-700 rounded-lg">
             <p>Drag tasks here</p>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Project, Space, Doc } from '../types';
-import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon, BeakerIcon, CpuChipIcon } from './icons';
+import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon, BeakerIcon, CpuChipIcon, LightBulbIcon } from './icons';
+import { ProjectHealthIndicator } from './intelligence/ai-pm/ProjectHealthIndicator';
 
 interface NavigationSidebarProps {
   spaces: Space[];
@@ -9,10 +10,10 @@ interface NavigationSidebarProps {
   selectedProjectId: string | null;
   activeContentType: 'tasks' | 'doc';
   activeDocId: string | null;
-  activeMainView: 'workspace' | 'foundry' | 'orchestrator';
+  activeMainView: 'workspace' | 'foundry' | 'orchestrator' | 'insights';
   onSelectProject: (id: string) => void;
   onSelectDoc: (id: string) => void;
-  onSetActiveMainView: (view: 'workspace' | 'foundry' | 'orchestrator') => void;
+  onSetActiveMainView: (view: 'workspace' | 'foundry' | 'orchestrator' | 'insights') => void;
   onCreateSpace: () => void;
   onEditSpace: (space: Space) => void;
   onDeleteSpace: (id: string) => void;
@@ -45,6 +46,7 @@ const ProjectItem: React.FC<{
                 <div className="flex items-center space-x-3 truncate">
                     <FolderIcon className="flex-shrink-0" />
                     <span className="truncate">{project.name}</span>
+                    <ProjectHealthIndicator health={project.health} />
                 </div>
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     <button onClick={(e) => { e.stopPropagation(); onCreateDoc(project.id); }} className="p-1 rounded hover:bg-gray-600/50" aria-label={`Add document to ${project.name}`}><PlusIcon className="w-4 h-4" /></button>
@@ -142,18 +144,26 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
   return (
     <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 h-full flex flex-col">
       <div className="flex flex-col gap-4 mb-4 flex-shrink-0">
-         <div className="flex items-center p-1 rounded-lg bg-gray-900/50">
+         <div className="flex items-center p-1 rounded-lg bg-gray-900/50 flex-wrap">
             <button
               onClick={() => onSetActiveMainView('workspace')}
-              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors ${activeMainView === 'workspace' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'workspace' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
               aria-pressed={activeMainView === 'workspace'}
             >
               <Squares2X2Icon className="w-5 h-5" />
               <span>Workspace</span>
             </button>
             <button
+              onClick={() => onSetActiveMainView('insights')}
+              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'insights' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              aria-pressed={activeMainView === 'insights'}
+            >
+              <LightBulbIcon className="w-5 h-5" />
+              <span>Insights</span>
+            </button>
+            <button
               onClick={() => onSetActiveMainView('foundry')}
-              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors ${activeMainView === 'foundry' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'foundry' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
               aria-pressed={activeMainView === 'foundry'}
             >
               <BeakerIcon className="w-5 h-5" />
@@ -161,7 +171,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
             </button>
             <button
               onClick={() => onSetActiveMainView('orchestrator')}
-              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors ${activeMainView === 'orchestrator' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors min-w-max ${activeMainView === 'orchestrator' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
               aria-pressed={activeMainView === 'orchestrator'}
             >
               <CpuChipIcon className="w-5 h-5" />

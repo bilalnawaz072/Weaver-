@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Task, Status, CustomFieldDefinition, CustomFieldType } from '../types';
-import { XMarkIcon } from './icons';
+import { Task, Status, CustomFieldDefinition, CustomFieldType, Prediction } from '../types';
+import { XMarkIcon, SparklesIcon } from './icons';
 
 const formatDateForInput = (date: Date | null | undefined): string => {
     if (!date) return '';
@@ -17,9 +17,10 @@ interface TaskFormModalProps {
   taskToEdit: Task | null;
   customFieldDefinitions: CustomFieldDefinition[];
   initialCustomFieldValues: { [key: string]: any };
+  taskPrediction?: Prediction;
 }
 
-export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, taskToEdit, customFieldDefinitions, initialCustomFieldValues }) => {
+export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, taskToEdit, customFieldDefinitions, initialCustomFieldValues, taskPrediction }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Status>(Status.Todo);
@@ -119,6 +120,17 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
         {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+          {taskPrediction && (
+            <div className="bg-indigo-900/50 border border-indigo-700 p-3 rounded-md text-sm">
+                <div className="flex items-center gap-2">
+                    <SparklesIcon className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+                    <p className="text-indigo-200">
+                        <strong>AI Prediction:</strong> This task will likely be completed by
+                        <strong className="ml-1">{new Date(taskPrediction.predictedValue.date!).toLocaleDateString()}</strong>.
+                    </p>
+                </div>
+            </div>
+          )}
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-1">Title</label>
             <input

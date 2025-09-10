@@ -17,6 +17,10 @@ export interface Project {
   name: string;
   description: string;
   mindMapData?: any;
+  health?: {
+    level: 'green' | 'yellow' | 'red';
+    reason: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -188,6 +192,66 @@ export interface StepExecution {
     startedAt: Date;
     endedAt: Date;
 }
+
+// --- Intelligence Layer: AI Project Manager ---
+
+export enum PredictionType {
+    CompletionDate = 'completion_date',
+    RiskLevel = 'risk_level',
+    Bottleneck = 'bottleneck',
+}
+
+export enum RiskLevel {
+    Low = 'Low',
+    Medium = 'Medium',
+    High = 'High',
+    Critical = 'Critical',
+}
+
+export interface Prediction {
+    id: string;
+    entityType: 'task' | 'project';
+    entityId: string;
+    type: PredictionType;
+    predictedValue: {
+        date?: string; // For CompletionDate
+        level?: RiskLevel; // For RiskLevel
+        isBottleneck?: boolean; // For Bottleneck
+    };
+    confidenceScore: number; // 0-1
+    factors: string[];
+    createdAt: Date;
+}
+
+export enum SuggestionType {
+    Assignment = 'assignment',
+    Priority = 'priority',
+    DeadlineAdjustment = 'deadline_adjustment',
+}
+
+export enum SuggestionStatus {
+    Pending = 'pending',
+    Accepted = 'accepted',
+    Rejected = 'rejected',
+}
+
+export interface InsightSuggestion {
+    id: string;
+    type: SuggestionType;
+    targetEntityId: string;
+    suggestion: {
+        message: string;
+        details?: any;
+    };
+    reasoning: string;
+    impactScore: number; // 0-1
+    status: SuggestionStatus;
+    createdAt: Date;
+}
+
+// A union type for the dashboard
+export type Insight = (Prediction & { insightType: 'prediction' }) | (InsightSuggestion & { insightType: 'suggestion' });
+
 
 // --- Intelligence Layer Types ---
 export type SearchableEntity = 

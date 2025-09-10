@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus, HttpRequestNodeData, CreateTaskNodeData, SearchableEntity } from './types';
+import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus, HttpRequestNodeData, CreateTaskNodeData, SearchableEntity, Prediction, InsightSuggestion, Insight, PredictionType, RiskLevel, SuggestionType, SuggestionStatus } from './types';
 import { TaskTable } from './components/TaskTable';
 import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
@@ -18,6 +18,7 @@ import { GraphView } from './components/GraphView';
 import { OrchestratorView } from './components/orchestrator/OrchestratorView';
 import { GlobalSearchBar } from './components/intelligence/GlobalSearchBar';
 import { SearchResultsModal } from './components/intelligence/SearchResultsModal';
+import { InsightsDashboard } from './components/intelligence/ai-pm/InsightsDashboard';
 import { GoogleGenAI, type Chat } from "@google/genai";
 
 const initialSpaces: Space[] = [
@@ -26,8 +27,8 @@ const initialSpaces: Space[] = [
 ];
 
 const initialProjects: Project[] = [
-  { id: 'proj-1', spaceId: 'space-1', name: 'Weaver App Development', description: 'Core development tasks for the Weaver application.', mindMapData: null, createdAt: new Date(2023, 10, 1), updatedAt: new Date(2023, 10, 1) },
-  { id: 'proj-2', spaceId: 'space-2', name: 'Q1 Marketing', description: 'Marketing campaigns for the first quarter.', mindMapData: null, createdAt: new Date(2023, 10, 2), updatedAt: new Date(2023, 10, 2) },
+  { id: 'proj-1', spaceId: 'space-1', name: 'Weaver App Development', description: 'Core development tasks for the Weaver application.', mindMapData: null, health: { level: 'yellow', reason: '1 task is predicted to be late.' }, createdAt: new Date(2023, 10, 1), updatedAt: new Date(2023, 10, 1) },
+  { id: 'proj-2', spaceId: 'space-2', name: 'Q1 Marketing', description: 'Marketing campaigns for the first quarter.', mindMapData: null, health: { level: 'green', reason: 'All tasks on schedule.' }, createdAt: new Date(2023, 10, 2), updatedAt: new Date(2023, 10, 2) },
   { id: 'proj-3', spaceId: 'space-1', name: 'API Integration', description: 'Integrating third-party APIs.', mindMapData: null, createdAt: new Date(2023, 10, 5), updatedAt: new Date(2023, 10, 5) },
 ];
 
@@ -144,6 +145,58 @@ const initialStepExecutions: StepExecution[] = [
     { id: 'se-3-1', runId: 'run-3', nodeId: 'n-1', status: StepExecutionStatus.Succeeded, inputData: null, outputData: { timestamp: '2024-01-03T09:00:00Z', dayOfWeek: 3 }, startedAt: new Date(), endedAt: new Date() },
 ];
 
+const initialPredictions: Prediction[] = [
+    {
+        id: 'pred-1',
+        entityType: 'task',
+        entityId: '7', // "Implement Kanban View"
+        type: PredictionType.CompletionDate,
+        predictedValue: { date: new Date(2023, 10, 22).toISOString() }, // Original due date is 18th
+        confidenceScore: 0.85,
+        factors: ['Assignee workload', 'Historical task duration for similar tasks'],
+        createdAt: new Date(),
+    },
+    {
+        id: 'pred-2',
+        entityType: 'project',
+        entityId: 'proj-1',
+        type: PredictionType.RiskLevel,
+        predictedValue: { level: RiskLevel.Medium },
+        confidenceScore: 0.78,
+        factors: ['Multiple tasks approaching deadlines', '1 critical path task is behind schedule'],
+        createdAt: new Date(),
+    },
+];
+
+const initialSuggestions: InsightSuggestion[] = [
+    {
+        id: 'sugg-1',
+        type: SuggestionType.DeadlineAdjustment,
+        targetEntityId: '7', // "Implement Kanban View"
+        suggestion: {
+            message: "Adjust 'Implement Kanban View' deadline to Nov 22, 2023 to match prediction.",
+            details: { newDueDate: new Date(2023, 10, 22).toISOString() }
+        },
+        reasoning: "The predicted completion date is 4 days after the current due date. Adjusting it will set more realistic expectations.",
+        impactScore: 0.6,
+        status: SuggestionStatus.Pending,
+        createdAt: new Date(),
+    },
+    {
+        id: 'sugg-2',
+        type: SuggestionType.Priority,
+        targetEntityId: '6', // "Implement Navigation Sidebar"
+        suggestion: {
+            message: "Increase priority of 'Implement Navigation Sidebar' task.",
+            details: { newPriority: 'High' }
+        },
+        reasoning: "This task is a dependency for 'Implement Kanban View' which is predicted to be late. Completing this sooner may mitigate the delay.",
+        impactScore: 0.8,
+        status: SuggestionStatus.Pending,
+        createdAt: new Date(),
+    }
+];
+
 
 const getUpdatedTasksWithPropagation = (
     tasks: Task[], 
@@ -236,13 +289,15 @@ const App: React.FC = () => {
   const [stepExecutions, setStepExecutions] = useState<StepExecution[]>(initialStepExecutions);
 
   // Global App State
-  const [activeMainView, setActiveMainView] = useState<'workspace' | 'foundry' | 'orchestrator'>('workspace');
+  const [activeMainView, setActiveMainView] = useState<'workspace' | 'foundry' | 'orchestrator' | 'insights'>('workspace');
   
   // Intelligence Layer State
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchableEntity[]>([]);
   const [synthesizedAnswer, setSynthesizedAnswer] = useState('');
+  const [predictions, setPredictions] = useState<Prediction[]>(initialPredictions);
+  const [suggestions, setSuggestions] = useState<InsightSuggestion[]>(initialSuggestions);
   const aiRef = useRef<GoogleGenAI | null>(null);
   const chatSessionRef = useRef<Chat | null>(null);
 
@@ -667,7 +722,7 @@ const App: React.FC = () => {
     .filter(res => res.score > 0)
     .sort((a, b) => b.score - a.score);
 
-    const topResults = rankedResults.slice(0, 10).map(r => r.item);
+    const topResults = rankedResults.slice(0, 7).map(r => r.item);
     
     if (currentRequestId !== searchRequestController.current) return;
     setSearchResults(topResults);
@@ -678,36 +733,50 @@ const App: React.FC = () => {
         return;
     }
 
-    // 2. Prepare and TRUNCATE context for Gemini to prevent errors
+    // 2. Prepare context with clearer labels and stricter truncation
     const context = topResults.map(item => {
-        const content = (item.entityType === 'doc' ? tiptapJsonToText(item.content) : item.description) || '';
-        const truncatedContent = content.length > 500 ? content.substring(0, 500) + '...' : content;
-
         let details = `Type: ${item.entityType}\nTitle: ${item.title}\n`;
+        let content = '';
+        let contentLabel = 'Content';
+
         if (item.entityType === 'task') {
+            content = item.description || '';
+            contentLabel = 'Description';
             details += `Status: ${item.status}\n`;
             if (item.startDate) details += `Start Date: ${item.startDate.toLocaleDateString()}\n`;
             if (item.dueDate) details += `Due Date: ${item.dueDate.toLocaleDateString()}\n`;
+        } else if (item.entityType === 'project') {
+            content = item.description || '';
+            contentLabel = 'Description';
+        } else if (item.entityType === 'doc') {
+            content = tiptapJsonToText(item.content) || '';
+            contentLabel = 'Content Summary';
         }
-        details += `Content: ${truncatedContent || 'N/A'}\n`;
+
+        const truncatedContent = content.length > 400 ? content.substring(0, 400) + '...' : content;
+        details += `${contentLabel}: ${truncatedContent || 'N/A'}\n`;
         return details;
     }).join('---\n');
     
+    // 3. Improved prompt for Gemini
     const message = `
+Analyze the following search results in the context of the user's query and provide a summary.
+
 User Query: "${query}"
 
-Search Results Context:
+Search Results:
 ${context}
+
+Based *only* on the information provided in the search results, answer the user's query. If the results don't contain a direct answer, summarize the most relevant findings. Do not invent information. Format your response in markdown.
 `;
 
-    // 3. Call Gemini for synthesis using a persistent Chat session
+    // 4. Call Gemini for synthesis using a persistent Chat session
     try {
         if (!aiRef.current) {
             throw new Error("AI client not initialized. Make sure API_KEY is set.");
         }
 
         if (!chatSessionRef.current) {
-// FIX: The 'systemInstruction' property must be nested inside a 'config' object.
              chatSessionRef.current = aiRef.current.chats.create({
               model: 'gemini-2.5-flash',
               config: {
@@ -716,7 +785,7 @@ ${context}
             });
         }
         
-        const responseStream = await chatSessionRef.current.sendMessageStream({ message: message });
+        const responseStream = await chatSessionRef.current.sendMessageStream({ message });
 
         let fullText = '';
         for await (const chunk of responseStream) {
@@ -742,6 +811,20 @@ ${context}
             setIsSearching(false);
         }
     }
+  };
+  
+  const handleAcceptSuggestion = (suggestionId: string) => {
+    setSuggestions(sugs => sugs.map(s => s.id === suggestionId ? {...s, status: SuggestionStatus.Accepted} : s));
+    
+    // Example of applying the suggestion
+    const suggestion = suggestions.find(s => s.id === suggestionId);
+    if (suggestion?.type === SuggestionType.DeadlineAdjustment) {
+        setTasks(ts => ts.map(t => t.id === suggestion.targetEntityId ? {...t, dueDate: new Date(suggestion.suggestion.details.newDueDate)} : t));
+    }
+  };
+
+  const handleRejectSuggestion = (suggestionId: string) => {
+      setSuggestions(sugs => sugs.map(s => s.id === suggestionId ? {...s, status: SuggestionStatus.Rejected} : s));
   };
 
 
@@ -946,7 +1029,7 @@ ${context}
 
         {/* Content View */}
         {activeView === 'table' && <TaskTable tasks={flattenedSortedTasks} onEdit={handleOpenEditTaskModal} onDelete={handleDeleteTask} onAddSubtask={handleOpenCreateSubtaskModal} requestSort={requestSort} sortConfig={sortConfig} customFieldDefinitions={customFieldDefinitionsForProject} customFieldValuesMap={customFieldValuesMap} visibleColumns={visibleTableColumns} onToggleColumn={(key) => setVisibleTableColumns(cols => cols.includes(key) ? cols.filter(c => c !== key) : [...cols, key])}/>}
-        {activeView === 'kanban' && <KanbanView tasks={rootTasksForKanban} onUpdateTaskStatus={handleUpdateTaskStatus} customFieldDefinitions={customFieldDefinitionsForProject} customFieldValues={customFieldValues} />}
+        {activeView === 'kanban' && <KanbanView tasks={rootTasksForKanban} onUpdateTaskStatus={handleUpdateTaskStatus} customFieldDefinitions={customFieldDefinitionsForProject} customFieldValues={customFieldValues} predictions={predictions} />}
         {activeView === 'timeline' && <TimelineView tasks={tasksForSelectedProject} />}
         {activeView === 'calendar' && <CalendarView tasks={tasksForSelectedProject} />}
         {activeView === 'mindmap' && <MindMapView project={selectedProject} onSave={(id, data) => setProjects(ps => ps.map(p => p.id === id ? {...p, mindMapData: data} : p))} onConvertToTasks={() => {}} />}
@@ -955,6 +1038,25 @@ ${context}
       </main>
     );
   };
+  
+  const renderInsightsView = () => {
+    const allInsights: Insight[] = [
+        ...predictions.map(p => ({ ...p, insightType: 'prediction' as const })),
+        ...suggestions.map(s => ({ ...s, insightType: 'suggestion' as const })),
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return (
+        <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+            <InsightsDashboard
+                insights={allInsights}
+                tasks={tasks}
+                projects={projects}
+                onAcceptSuggestion={handleAcceptSuggestion}
+                onRejectSuggestion={handleRejectSuggestion}
+            />
+        </main>
+    );
+};
 
   const renderMainView = () => {
     switch (activeMainView) {
@@ -995,6 +1097,8 @@ ${context}
                     }}
                 />
             );
+        case 'insights':
+            return renderInsightsView();
         case 'workspace':
         default:
             return renderWorkspaceView();
@@ -1043,6 +1147,7 @@ ${context}
             }, {} as {[key: string]: any})
             : {}
         }
+        taskPrediction={taskToEdit ? predictions.find(p => p.entityId === taskToEdit.id && p.type === PredictionType.CompletionDate) : undefined}
       />
       <ProjectFormModal 
         isOpen={isProjectModalOpen}

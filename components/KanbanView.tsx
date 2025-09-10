@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Task, Status, CustomFieldDefinition, CustomFieldValue } from '../types';
+import { Task, Status, CustomFieldDefinition, CustomFieldValue, Prediction } from '../types';
 import { KanbanColumn } from './KanbanColumn';
 
 export interface KanbanTask extends Task {
@@ -13,9 +13,10 @@ interface KanbanViewProps {
   onUpdateTaskStatus: (taskId: string, newStatus: Status) => void;
   customFieldDefinitions: CustomFieldDefinition[];
   customFieldValues: CustomFieldValue[];
+  predictions: Prediction[];
 }
 
-export const KanbanView: React.FC<KanbanViewProps> = ({ tasks, onUpdateTaskStatus, customFieldDefinitions, customFieldValues }) => {
+export const KanbanView: React.FC<KanbanViewProps> = ({ tasks, onUpdateTaskStatus, customFieldDefinitions, customFieldValues, predictions }) => {
   const customFieldDefinitionMap = useMemo(() => new Map(customFieldDefinitions.map(def => [def.id, def])), [customFieldDefinitions]);
 
   const tasksWithCustomFields = useMemo(() => {
@@ -55,6 +56,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ tasks, onUpdateTaskStatu
           status={status}
           tasks={groupedTasks[status]}
           onDropTask={onUpdateTaskStatus}
+          predictions={predictions}
         />
       ))}
     </div>

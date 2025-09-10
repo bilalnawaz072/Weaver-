@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt } from './types';
+import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType } from './types';
 import { TaskTable } from './components/TaskTable';
 import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
@@ -15,6 +15,7 @@ import { CalendarView } from './components/CalendarView';
 import { FoundryView } from './components/foundry/FoundryView';
 import { MindMapView } from './components/MindMapView';
 import { GraphView } from './components/GraphView';
+import { OrchestratorView } from './components/orchestrator/OrchestratorView';
 import { GoogleGenAI } from "@google/genai";
 
 const initialSpaces: Space[] = [
@@ -71,6 +72,25 @@ const initialPrompts: Prompt[] = [
     { id: 'p-1', name: 'Summarize Text', description: 'Summarizes the content of the document.', promptText: 'Please summarize the following text in a single, concise paragraph:\n\n{{document_content}}', contextVariableName: 'document_content', createdAt: new Date(), updatedAt: new Date() },
     { id: 'p-2', name: 'Generate Blog Post Ideas', description: 'Creates a list of blog post ideas based on a topic.', promptText: 'Generate a list of 5 creative blog post titles about the topic of {{topic}}.', contextVariableName: null, createdAt: new Date(), updatedAt: new Date() },
     { id: 'p-3', name: 'Brainstorm Next Steps', description: 'Reads a document and suggests next steps.', promptText: 'Based on the following document, please brainstorm a list of 3-5 actionable next steps or tasks:\n\n{{document_content}}', contextVariableName: 'document_content', createdAt: new Date(), updatedAt: new Date() },
+];
+
+const initialWorkflows: Workflow[] = [
+    {
+        id: 'wf-1',
+        name: 'Daily Project Summary',
+        isActive: true,
+        definition: {
+            nodes: [
+                { id: 'n-1', type: NodeType.TriggerSchedule, position: { x: 50, y: 150 }, data: { label: 'Every Day at 9am', interval: 'day', time: '09:00' } },
+                { id: 'n-2', type: NodeType.LogicIf, position: { x: 350, y: 150 }, data: { label: 'Is it a weekday?', variable: 'date.dayOfWeek', operator: 'lt', value: '6' } },
+            ],
+            edges: [
+                { id: 'e-1-2', source: 'n-1', target: 'n-2', sourceHandle: null, targetHandle: null },
+            ],
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    }
 ];
 
 
@@ -158,9 +178,12 @@ const App: React.FC = () => {
   // Foundry State
   const [prompts, setPrompts] = useState<Prompt[]>(initialPrompts);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+  
+  // Orchestrator State
+  const [workflows, setWorkflows] = useState<Workflow[]>(initialWorkflows);
 
   // Global App State
-  const [activeMainView, setActiveMainView] = useState<'workspace' | 'foundry'>('workspace');
+  const [activeMainView, setActiveMainView] = useState<'workspace' | 'foundry' | 'orchestrator'>('workspace');
   
   // Modal State
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -702,6 +725,29 @@ const App: React.FC = () => {
       }
   };
 
+  // Orchestrator Handlers
+  const handleCreateWorkflow = () => {
+    const newWorkflow: Workflow = {
+        id: crypto.randomUUID(),
+        name: 'New Untitled Agent',
+        isActive: false,
+        definition: { nodes: [], edges: [] },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    };
+    setWorkflows(prev => [newWorkflow, ...prev]);
+    return newWorkflow.id;
+  };
+  
+  const handleSaveWorkflow = (workflowId: string, name: string, definition: WorkflowDefinition) => {
+    setWorkflows(prev => prev.map(w =>
+        w.id === workflowId
+            ? { ...w, name, definition, updatedAt: new Date() }
+            : w
+    ));
+  };
+
+
   const renderActiveView = () => {
     switch(activeView) {
       case 'table':
@@ -753,6 +799,16 @@ const App: React.FC = () => {
                 onSavePrompt={handleSavePrompt}
                 onDeletePrompt={handleDeletePrompt}
                 onRunPrompt={handleRunPrompt}
+            />
+        );
+    }
+    
+    if (activeMainView === 'orchestrator') {
+        return (
+            <OrchestratorView
+                workflows={workflows}
+                onCreateWorkflow={handleCreateWorkflow}
+                onSaveWorkflow={handleSaveWorkflow}
             />
         );
     }

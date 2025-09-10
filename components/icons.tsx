@@ -121,3 +121,10 @@ export const ChartPieIcon: React.FC<{ className?: string }> = ({ className }) =>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" />
     </svg>
 );
+
+export const CpuChipIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-5 h-5 ${className || ''}`}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 21v-1.5M15.75 3v1.5m0 16.5v-1.5m-3.75-16.5v1.5m0 16.5v-1.5M12 5.25v-1.5m0 16.5v-1.5m3.75-12H21m-21 0h1.5m15 0H21M3 12h1.5m15 0H21m-21 0h1.5m9 3.75V21m-3.75-1.5H9m3-13.5H9m3 7.5H9m-3.75 0H3m18 0h-1.5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 9h6v6H9V9Z" />
+    </svg>
+);

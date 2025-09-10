@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, Space, Doc } from '../types';
-import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon, BeakerIcon } from './icons';
+import { FolderIcon, PlusIcon, EditIcon, TrashIcon, Squares2X2Icon, ChevronRightIcon, ChevronDownIcon, DocumentTextIcon, TableCellsIcon, BeakerIcon, CpuChipIcon } from './icons';
 
 interface NavigationSidebarProps {
   spaces: Space[];
@@ -9,10 +9,10 @@ interface NavigationSidebarProps {
   selectedProjectId: string | null;
   activeContentType: 'tasks' | 'doc';
   activeDocId: string | null;
-  activeMainView: 'workspace' | 'foundry';
+  activeMainView: 'workspace' | 'foundry' | 'orchestrator';
   onSelectProject: (id: string) => void;
   onSelectDoc: (id: string) => void;
-  onSetActiveMainView: (view: 'workspace' | 'foundry') => void;
+  onSetActiveMainView: (view: 'workspace' | 'foundry' | 'orchestrator') => void;
   onCreateSpace: () => void;
   onEditSpace: (space: Space) => void;
   onDeleteSpace: (id: string) => void;
@@ -158,6 +158,14 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = (props) => {
             >
               <BeakerIcon className="w-5 h-5" />
               <span>Foundry</span>
+            </button>
+            <button
+              onClick={() => onSetActiveMainView('orchestrator')}
+              className={`flex-1 flex justify-center items-center gap-2 p-2 rounded-md text-sm font-medium transition-colors ${activeMainView === 'orchestrator' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+              aria-pressed={activeMainView === 'orchestrator'}
+            >
+              <CpuChipIcon className="w-5 h-5" />
+              <span>Orchestrator</span>
             </button>
         </div>
 

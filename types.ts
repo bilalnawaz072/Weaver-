@@ -78,3 +78,56 @@ export interface Prompt {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// --- Orchestrator Types ---
+
+export enum NodeType {
+  TriggerSchedule = 'trigger-schedule',
+  LogicIf = 'logic-if',
+}
+
+export interface BaseNodeData {
+  label: string;
+}
+
+export interface ScheduleNodeData extends BaseNodeData {
+  interval: 'hour' | 'day' | 'week';
+  time: string; // e.g., "09:00"
+}
+
+export interface ConditionNodeData extends BaseNodeData {
+  variable: string;
+  operator: 'equals' | 'contains' | 'gt' | 'lt';
+  value: string;
+}
+
+export type NodeData = ScheduleNodeData | ConditionNodeData;
+
+export interface Node<T = NodeData> {
+  id: string;
+  type: NodeType;
+  position: { x: number, y: number };
+  data: T;
+}
+
+export interface Edge {
+  id: string;
+  source: string;
+  sourceHandle?: string | null;
+  target: string;
+  targetHandle?: string | null;
+}
+
+export interface WorkflowDefinition {
+  nodes: Node[];
+  edges: Edge[];
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  isActive: boolean;
+  definition: WorkflowDefinition;
+  createdAt: Date;
+  updatedAt: Date;
+}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus } from './types';
+import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus, HttpRequestNodeData, CreateTaskNodeData } from './types';
 import { TaskTable } from './components/TaskTable';
 import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
@@ -850,6 +850,7 @@ const App: React.FC = () => {
                 workflowRuns={workflowRuns}
                 stepExecutions={stepExecutions}
                 prompts={prompts}
+                projects={projects}
                 onCreateWorkflow={handleCreateWorkflow}
                 onSaveWorkflow={handleSaveWorkflow}
             />

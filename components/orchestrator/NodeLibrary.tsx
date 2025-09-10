@@ -5,6 +5,8 @@ const libraryItems = [
     { type: NodeType.TriggerSchedule, name: 'Schedule', description: 'Starts workflow on a timer.', category: 'Triggers' },
     { type: NodeType.LogicIf, name: 'If/Then', description: 'Branch based on a condition.', category: 'Logic' },
     { type: NodeType.ActionPrompt, name: 'Prompt', description: 'Executes an AI prompt.', category: 'Actions' },
+    { type: NodeType.ToolHttpRequest, name: 'HTTP Request', description: 'Call an external API or webhook.', category: 'Tools' },
+    { type: NodeType.ToolCreateTask, name: 'Create Task', description: 'Create a new task in Weaver.', category: 'Tools' },
 ];
 
 const DraggableNode: React.FC<{ item: typeof libraryItems[0] }> = ({ item }) => {

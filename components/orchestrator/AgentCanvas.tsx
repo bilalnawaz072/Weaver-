@@ -1,24 +1,28 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Workflow, WorkflowDefinition, Node, Edge, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData } from '../../types';
+import { Workflow, WorkflowDefinition, Node, Edge, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData, Project, HttpRequestNodeData, CreateTaskNodeData } from '../../types';
 import { NodeLibrary } from './NodeLibrary';
 import { PropertiesPanel } from './PropertiesPanel';
 import { ChevronLeftIcon } from '../icons';
 import { ScheduleNode } from './nodes/ScheduleNode';
 import { ConditionNode } from './nodes/ConditionNode';
 import { PromptNode } from './nodes/PromptNode';
+import { HttpRequestNode } from './nodes/HttpRequestNode';
+import { CreateTaskNode } from './nodes/CreateTaskNode';
 
 interface AgentCanvasProps {
     workflow: Workflow;
     prompts: Prompt[];
+    projects: Project[];
     onSave: (workflowId: string, name: string, definition: WorkflowDefinition) => void;
     onBack: () => void;
 }
 
-export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, onSave, onBack }) => {
+export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, projects, onSave, onBack }) => {
     const [name, setName] = useState(workflow.name);
     const [nodes, setNodes] = useState<Node[]>(workflow.definition.nodes);
     const [edges, setEdges] = useState<Edge[]>(workflow.definition.edges);
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+    const [isCanvasMounted, setIsCanvasMounted] = useState(false);
     const [connecting, setConnecting] = useState<{ sourceId: string; sourceHandle: string | null; x: number, y: number } | null>(null);
 
     const canvasRef = useRef<HTMLDivElement>(null);
@@ -27,6 +31,10 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, onS
     const handleSave = () => {
         onSave(workflow.id, name, { nodes, edges });
     };
+
+    useEffect(() => {
+        setIsCanvasMounted(true);
+    }, []);
 
     const handleNodeDrag = (id: string, newPosition: { x: number, y: number }) => {
         setNodes(nodes => nodes.map(n => n.id === id ? { ...n, position: newPosition } : n));
@@ -53,6 +61,12 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, onS
                 break;
             case NodeType.ActionPrompt:
                 newNodeData = { label: 'Prompt', promptId: null, variableMappings: {} } as PromptNodeData;
+                break;
+            case NodeType.ToolHttpRequest:
+                newNodeData = { label: 'HTTP Request', method: 'GET', url: '', headers: {}, body: '' } as HttpRequestNodeData;
+                break;
+            case NodeType.ToolCreateTask:
+                newNodeData = { label: 'Create Task', projectId: null, title: '', description: '' } as CreateTaskNodeData;
                 break;
             default:
                 return;
@@ -176,22 +190,23 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, onS
                     onClick={() => setSelectedNodeId(null)}
                 >
                     <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                        {edges.map(edge => {
-                            const sourcePos = getHandlePosition(edge.source, edge.sourceHandle, 'source');
-                            const targetPos = getHandlePosition(edge.target, edge.targetHandle, 'target');
-                            if (!sourcePos || !targetPos) return null;
-                            const path = `M ${sourcePos.x} ${sourcePos.y} C ${sourcePos.x + 50} ${sourcePos.y}, ${targetPos.x - 50} ${targetPos.y}, ${targetPos.x} ${targetPos.y}`;
-                            return <path key={edge.id} d={path} stroke="#6b7280" strokeWidth="2" fill="none" />;
-                        })}
-                        {connecting && canvasRef.current && (() => {
-                            const sourcePos = getHandlePosition(connecting.sourceId, connecting.sourceHandle, 'source');
-                            if (!sourcePos) return null;
-                            const path = `M ${sourcePos.x} ${sourcePos.y} C ${sourcePos.x + 50} ${sourcePos.y}, ${connecting.x - 50} ${connecting.y}, ${connecting.x} ${connecting.y}`;
-                            return <path d={path} stroke="#a78bfa" strokeWidth="2" fill="none" strokeDasharray="5,5" />;
-                        })()}
+                        {isCanvasMounted && edges.map(edge => {
+                                const sourcePos = getHandlePosition(edge.source, edge.sourceHandle, 'source');
+                                const targetPos = getHandlePosition(edge.target, edge.targetHandle, 'target');
+                                if (!sourcePos || !targetPos) return null;
+                                const path = `M ${sourcePos.x} ${sourcePos.y} C ${sourcePos.x + 50} ${sourcePos.y}, ${targetPos.x - 50} ${targetPos.y}, ${targetPos.x} ${targetPos.y}`;
+                                return <path key={edge.id} d={path} stroke="#6b7280" strokeWidth="2" fill="none" />;
+                            })
+                        }
+                        {isCanvasMounted && connecting && canvasRef.current && (() => {
+                                const sourcePos = getHandlePosition(connecting.sourceId, connecting.sourceHandle, 'source');
+                                if (!sourcePos) return null;
+                                const path = `M ${sourcePos.x} ${sourcePos.y} C ${sourcePos.x + 50} ${sourcePos.y}, ${connecting.x - 50} ${connecting.y}, ${connecting.x} ${connecting.y}`;
+                                return <path d={path} stroke="#a78bfa" strokeWidth="2" fill="none" strokeDasharray="5,5" />;
+                            })()
+                        }
                     </svg>
 
-                    {/* FIX: Use a switch statement to render the correct node component for each node type. This resolves a TypeScript error by ensuring the `node` prop is correctly typed for the component being rendered. A type assertion is needed because the `Node<T>` type definition prevents automatic type narrowing. */}
                     {nodes.map(node => {
                         switch (node.type) {
                             case NodeType.TriggerSchedule:
@@ -233,6 +248,32 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, onS
                                         onFinishConnection={handleFinishConnection}
                                     />
                                 );
+                             case NodeType.ToolHttpRequest:
+                                return (
+                                    <HttpRequestNode
+                                        key={node.id}
+                                        ref={(el: HTMLDivElement) => { if(el) nodeRefs.current[node.id] = el }}
+                                        node={node as Node<HttpRequestNodeData>}
+                                        onDrag={handleNodeDrag}
+                                        onSelect={() => setSelectedNodeId(node.id)}
+                                        isSelected={selectedNodeId === node.id}
+                                        onStartConnection={handleStartConnection}
+                                        onFinishConnection={handleFinishConnection}
+                                    />
+                                );
+                            case NodeType.ToolCreateTask:
+                                return (
+                                    <CreateTaskNode
+                                        key={node.id}
+                                        ref={(el: HTMLDivElement) => { if(el) nodeRefs.current[node.id] = el }}
+                                        node={node as Node<CreateTaskNodeData>}
+                                        onDrag={handleNodeDrag}
+                                        onSelect={() => setSelectedNodeId(node.id)}
+                                        isSelected={selectedNodeId === node.id}
+                                        onStartConnection={handleStartConnection}
+                                        onFinishConnection={handleFinishConnection}
+                                    />
+                                );
                             default:
                                 return null;
                         }
@@ -243,6 +284,7 @@ export const AgentCanvas: React.FC<AgentCanvasProps> = ({ workflow, prompts, onS
                 selectedNode={selectedNode}
                 onUpdateNodeData={updateNodeData}
                 prompts={prompts}
+                projects={projects}
             />
         </div>
     );

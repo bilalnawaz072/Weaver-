@@ -85,6 +85,8 @@ export enum NodeType {
   TriggerSchedule = 'trigger-schedule',
   LogicIf = 'logic-if',
   ActionPrompt = 'action-prompt',
+  ToolHttpRequest = 'tool-http-request',
+  ToolCreateTask = 'tool-create-task',
 }
 
 export interface BaseNodeData {
@@ -107,7 +109,21 @@ export interface PromptNodeData extends BaseNodeData {
   variableMappings: { [key: string]: string };
 }
 
-export type NodeData = ScheduleNodeData | ConditionNodeData | PromptNodeData;
+export interface HttpRequestNodeData extends BaseNodeData {
+  url: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  headers: { [key: string]: string };
+  body: string; // Raw JSON/text
+}
+
+export interface CreateTaskNodeData extends BaseNodeData {
+  projectId: string | null;
+  title: string;
+  description: string;
+}
+
+
+export type NodeData = ScheduleNodeData | ConditionNodeData | PromptNodeData | HttpRequestNodeData | CreateTaskNodeData;
 
 export interface Node<T = NodeData> {
   id: string;

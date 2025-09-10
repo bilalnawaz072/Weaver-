@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Workflow, WorkflowDefinition, Prompt, WorkflowRun, StepExecution } from '../../types';
+import { Workflow, WorkflowDefinition, Prompt, WorkflowRun, StepExecution, Project } from '../../types';
 import { AgentList } from './AgentList';
 import { AgentCanvas } from './AgentCanvas';
 import { RunHistoryList } from './RunHistoryList';
@@ -10,12 +10,13 @@ interface OrchestratorViewProps {
     workflowRuns: WorkflowRun[];
     stepExecutions: StepExecution[];
     prompts: Prompt[];
+    projects: Project[];
     onCreateWorkflow: () => string; // Returns the ID of the new workflow
     onSaveWorkflow: (workflowId: string, name: string, definition: WorkflowDefinition) => void;
 }
 
 export const OrchestratorView: React.FC<OrchestratorViewProps> = (props) => {
-    const { workflows, workflowRuns, stepExecutions, prompts, onCreateWorkflow, onSaveWorkflow } = props;
+    const { workflows, workflowRuns, stepExecutions, prompts, projects, onCreateWorkflow, onSaveWorkflow } = props;
     
     const [viewMode, setViewMode] = useState<'builder' | 'runs'>('builder');
     const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
@@ -78,6 +79,7 @@ export const OrchestratorView: React.FC<OrchestratorViewProps> = (props) => {
                     key={selectedWorkflow.id}
                     workflow={selectedWorkflow}
                     prompts={prompts}
+                    projects={projects}
                     onSave={onSaveWorkflow}
                     onBack={handleBackToList}
                 />

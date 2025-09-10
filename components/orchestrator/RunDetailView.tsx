@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Workflow, Node as WorkflowNode, Edge, NodeType, ScheduleNodeData, ConditionNodeData, PromptNodeData, WorkflowRun, StepExecution } from '../../types';
 import { ChevronLeftIcon } from '../icons';
 import { ScheduleNode } from './nodes/ScheduleNode';
@@ -16,6 +16,7 @@ interface RunDetailViewProps {
 
 export const RunDetailView: React.FC<RunDetailViewProps> = ({ run, workflow, stepExecutions, onBack }) => {
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+    const [isCanvasMounted, setIsCanvasMounted] = useState(false);
     const canvasRef = useRef<HTMLDivElement>(null);
     const nodeRefs = useRef<{ [key: string]: HTMLDivElement }>({});
 
@@ -23,6 +24,10 @@ export const RunDetailView: React.FC<RunDetailViewProps> = ({ run, workflow, ste
         new Map(stepExecutions.map(s => [s.nodeId, s])),
         [stepExecutions]
     );
+
+    useEffect(() => {
+        setIsCanvasMounted(true);
+    }, []);
 
     const getHandlePosition = (nodeId: string, handleId: string | null, type: 'source' | 'target'): { x: number, y: number } | null => {
         const node = workflow.definition.nodes.find(n => n.id === nodeId);
@@ -72,13 +77,14 @@ export const RunDetailView: React.FC<RunDetailViewProps> = ({ run, workflow, ste
                     onClick={() => setSelectedNodeId(null)}
                 >
                     <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                        {workflow.definition.edges.map(edge => {
-                            const sourcePos = getHandlePosition(edge.source, edge.sourceHandle, 'source');
-                            const targetPos = getHandlePosition(edge.target, edge.targetHandle, 'target');
-                            if (!sourcePos || !targetPos) return null;
-                            const path = `M ${sourcePos.x} ${sourcePos.y} C ${sourcePos.x + 50} ${sourcePos.y}, ${targetPos.x - 50} ${targetPos.y}, ${targetPos.x} ${targetPos.y}`;
-                            return <path key={edge.id} d={path} stroke="#6b7280" strokeWidth="2" fill="none" />;
-                        })}
+                        {isCanvasMounted && workflow.definition.edges.map(edge => {
+                                const sourcePos = getHandlePosition(edge.source, edge.sourceHandle, 'source');
+                                const targetPos = getHandlePosition(edge.target, edge.targetHandle, 'target');
+                                if (!sourcePos || !targetPos) return null;
+                                const path = `M ${sourcePos.x} ${sourcePos.y} C ${sourcePos.x + 50} ${sourcePos.y}, ${targetPos.x - 50} ${targetPos.y}, ${targetPos.x} ${targetPos.y}`;
+                                return <path key={edge.id} d={path} stroke="#6b7280" strokeWidth="2" fill="none" />;
+                            })
+                        }
                     </svg>
                     {workflow.definition.nodes.map(node => {
                          const execution = stepExecutionMap.get(node.id);

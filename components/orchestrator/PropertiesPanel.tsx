@@ -1,11 +1,14 @@
 import React from 'react';
-import { Node, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData } from '../../types';
+import { Node, NodeType, NodeData, ScheduleNodeData, ConditionNodeData, Prompt, PromptNodeData, Project, HttpRequestNodeData, CreateTaskNodeData } from '../../types';
 import { PromptNodeProperties } from './PromptNodeProperties';
+import { HttpRequestNodeProperties } from './HttpRequestNodeProperties';
+import { CreateTaskNodeProperties } from './CreateTaskNodeProperties';
 
 
 interface PropertiesPanelProps {
     selectedNode: Node | undefined;
     prompts: Prompt[];
+    projects: Project[];
     onUpdateNodeData: (nodeId: string, data: Partial<NodeData>) => void;
 }
 
@@ -104,7 +107,7 @@ const ConditionNodeProperties: React.FC<{ node: Node<ConditionNodeData>, onUpdat
 };
 
 
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedNode, prompts, onUpdateNodeData }) => {
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedNode, prompts, projects, onUpdateNodeData }) => {
     const renderProperties = () => {
         if (!selectedNode) return null;
 
@@ -119,6 +122,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedNode, 
                 return <ConditionNodeProperties node={selectedNode as Node<ConditionNodeData>} onUpdate={handleUpdate} />;
             case NodeType.ActionPrompt:
                 return <PromptNodeProperties node={selectedNode as Node<PromptNodeData>} prompts={prompts} onUpdate={handleUpdate} />;
+            case NodeType.ToolHttpRequest:
+                return <HttpRequestNodeProperties node={selectedNode as Node<HttpRequestNodeData>} onUpdate={handleUpdate} />;
+            case NodeType.ToolCreateTask:
+                return <CreateTaskNodeProperties node={selectedNode as Node<CreateTaskNodeData>} projects={projects} onUpdate={handleUpdate} />;
             default:
                 return <p>Unknown node type selected.</p>;
         }

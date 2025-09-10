@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Doc, Prompt } from '../types';
-import { TrashIcon } from './icons';
+import { TrashIcon, SparklesIcon } from './icons';
 // FIX: Add ReactRenderer to correctly render React components in tiptap's suggestion utility.
 import { useEditor, EditorContent, Editor, ReactRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Mention } from '@tiptap/extension-mention';
 import { Node } from '@tiptap/core';
-import { suggestion } from '@tiptap/suggestion';
 import { SlashCommandMenu } from './SlashCommandMenu';
 // FIX: Import tippy to make it available for creating the popup.
 import tippy from 'tippy.js';
@@ -108,9 +107,14 @@ const CommandPlugin = (prompts: Prompt[], onExecute: (prompt: Prompt, editor: Ed
                 },
             };
         },
+// FIX: The `props` object from the Mention extension's command is not the full `Prompt` object.
+// We must find the full prompt from the list using the ID provided in `props`.
         command: ({ editor, range, props }) => {
             // `props` is the selected prompt item
-            onExecute(props, editor);
+            const fullPrompt = prompts.find(p => p.id === props.id);
+            if (fullPrompt) {
+                onExecute(fullPrompt, editor);
+            }
 
             editor
                 .chain()
@@ -127,13 +131,14 @@ const CommandPlugin = (prompts: Prompt[], onExecute: (prompt: Prompt, editor: Ed
 export const DocEditor: React.FC<DocEditorProps> = ({ doc, prompts, onSave, onDelete, onExecutePrompt }) => {
     const [title, setTitle] = useState(doc.title);
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+    const [isSummarizing, setIsSummarizing] = useState(false);
     
     const debouncedSave = useDebounce((newTitle: string, newContent: any) => {
         onSave(doc.id, { title: newTitle, content: newContent });
         setSaveStatus('saved');
     }, 1500);
 
-    const handleExecute = async (prompt: Prompt, editor: Editor) => {
+    const handleExecuteSlashCommand = async (prompt: Prompt, editor: Editor) => {
         const { from, to } = editor.state.selection;
         
         // Insert loading node
@@ -154,12 +159,33 @@ export const DocEditor: React.FC<DocEditorProps> = ({ doc, prompts, onSave, onDe
         }
     };
 
+    const handleSummarize = async () => {
+        const summaryPrompt = prompts.find(p => p.name === 'Summarize Text');
+        if (!summaryPrompt || !editor) {
+            console.error("Summarize Text prompt not found or editor not ready.");
+            return;
+        }
+
+        setIsSummarizing(true);
+        try {
+            const summaryText = await onExecutePrompt(doc.id, summaryPrompt.id);
+            const summaryHtml = `<blockquote><p>${summaryText}</p></blockquote><p></p>`; // Wrap in blockquote and add space after
+            editor.chain().focus().insertContentAt(0, summaryHtml).run();
+        } catch (error) {
+            console.error("Error generating summary:", error);
+            const errorHtml = `<p><strong>Error generating summary:</strong> ${error instanceof Error ? error.message : 'Unknown error'} </p>`;
+            editor.chain().focus().insertContentAt(0, errorHtml).run();
+        } finally {
+            setIsSummarizing(false);
+        }
+    };
+
     const editor = useEditor({
         extensions: [
             StarterKit,
             Placeholder.configure({ placeholder: 'Start writing, or type / for AI commands...' }),
             LoadingNode,
-            CommandPlugin(prompts, handleExecute),
+            CommandPlugin(prompts, handleExecuteSlashCommand),
         ],
         content: doc.content,
         editorProps: {
@@ -175,7 +201,9 @@ export const DocEditor: React.FC<DocEditorProps> = ({ doc, prompts, onSave, onDe
 
     useEffect(() => {
         setTitle(doc.title);
-        editor?.commands.setContent(doc.content, false);
+// FIX: The `setContent` command API has changed in newer TipTap versions.
+// The second argument should be an options object, not a boolean.
+        editor?.commands.setContent(doc.content, { emitUpdate: false });
         setSaveStatus('saved');
     }, [doc, editor]);
 
@@ -205,7 +233,15 @@ export const DocEditor: React.FC<DocEditorProps> = ({ doc, prompts, onSave, onDe
                         placeholder="Untitled Document"
                         className="text-3xl font-bold text-white bg-transparent focus:outline-none w-full border-b-2 border-transparent focus:border-indigo-500 transition-colors py-2"
                     />
-                    <div className="flex items-center space-x-4">
+                     <div className="flex items-center space-x-4 flex-shrink-0 pl-4">
+                        <button 
+                            onClick={handleSummarize}
+                            disabled={isSummarizing}
+                            className="flex items-center gap-2 text-sm bg-indigo-600/50 text-indigo-200 px-3 py-2 rounded-md hover:bg-indigo-600/80 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                        >
+                            <SparklesIcon className={`w-4 h-4 ${isSummarizing ? 'animate-pulse' : ''}`} />
+                            {isSummarizing ? 'Summarizing...' : 'Summarize'}
+                        </button>
                         <p className="text-sm text-gray-400 italic transition-opacity duration-300">
                             {getStatusText()}
                         </p>

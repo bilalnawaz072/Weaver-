@@ -188,3 +188,9 @@ export interface StepExecution {
     startedAt: Date;
     endedAt: Date;
 }
+
+// --- Intelligence Layer Types ---
+export type SearchableEntity = 
+    | (Task & { entityType: 'task', title: string })
+    | (Doc & { entityType: 'doc', title: string })
+    | (Project & { entityType: 'project', title: string, description: string });

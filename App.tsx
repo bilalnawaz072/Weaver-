@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus, HttpRequestNodeData, CreateTaskNodeData } from './types';
+import { Task, Status, TaskSortKey, Project, Space, CustomFieldDefinition, CustomFieldValue, CustomFieldType, Doc, Prompt, Workflow, WorkflowDefinition, NodeType, WorkflowRun, StepExecution, WorkflowRunStatus, StepExecutionStatus, HttpRequestNodeData, CreateTaskNodeData, SearchableEntity } from './types';
 import { TaskTable } from './components/TaskTable';
 import { TaskFormModal } from './components/TaskFormModal';
 import { NavigationSidebar } from './components/NavigationSidebar';
@@ -16,7 +16,9 @@ import { FoundryView } from './components/foundry/FoundryView';
 import { MindMapView } from './components/MindMapView';
 import { GraphView } from './components/GraphView';
 import { OrchestratorView } from './components/orchestrator/OrchestratorView';
-import { GoogleGenAI } from "@google/genai";
+import { GlobalSearchBar } from './components/intelligence/GlobalSearchBar';
+import { SearchResultsModal } from './components/intelligence/SearchResultsModal';
+import { GoogleGenAI, type Chat } from "@google/genai";
 
 const initialSpaces: Space[] = [
     { id: 'space-1', name: 'Product Development', createdAt: new Date(), updatedAt: new Date() },
@@ -43,11 +45,22 @@ const initialTasks: Task[] = [
 const textToTipTapJson = (text: string) => {
     return {
         type: 'doc',
-        content: text.split('\n').map(paragraph => ({
+        content: text.split('\n').filter(p => p.trim() !== '').map(paragraph => ({
             type: 'paragraph',
             content: paragraph ? [{ type: 'text', text: paragraph }] : []
         }))
     };
+};
+
+const tiptapJsonToText = (node: any): string => {
+    if (!node) return '';
+    if (node.type === 'text' && node.text) {
+        return node.text;
+    }
+    if (node.content && Array.isArray(node.content)) {
+        return node.content.map(tiptapJsonToText).join(node.type === 'doc' ? '\n\n' : '');
+    }
+    return '';
 };
 
 const initialDocs: Doc[] = [
@@ -225,6 +238,14 @@ const App: React.FC = () => {
   // Global App State
   const [activeMainView, setActiveMainView] = useState<'workspace' | 'foundry' | 'orchestrator'>('workspace');
   
+  // Intelligence Layer State
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchableEntity[]>([]);
+  const [synthesizedAnswer, setSynthesizedAnswer] = useState('');
+  const aiRef = useRef<GoogleGenAI | null>(null);
+  const chatSessionRef = useRef<Chat | null>(null);
+
   // Modal State
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
@@ -239,9 +260,16 @@ const App: React.FC = () => {
   const [isProjectSettingsModalOpen, setIsProjectSettingsModalOpen] = useState(false);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
+  const searchRequestController = useRef(0);
 
 
   // Effects
+  useEffect(() => {
+    if (process.env.API_KEY && !aiRef.current) {
+        aiRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    }
+  }, []);
+
   useEffect(() => {
     if (activeMainView === 'workspace' && !selectedProjectId && projects.length > 0) {
         setSelectedProjectId(projects[0].id);
@@ -265,6 +293,19 @@ const App: React.FC = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [createMenuRef]);
+  
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+        event.preventDefault();
+        setIsSearchModalOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Derived State
   const selectedProject = useMemo(() => projects.find(p => p.id === selectedProjectId), [projects, selectedProjectId]);
@@ -577,19 +618,6 @@ const App: React.FC = () => {
         return `Error: The prompt "${prompt.name}" is not configured for in-document execution. Please set a context variable in the Foundry.`;
     }
 
-    // Helper to convert TipTap JSON to plain text
-    const tiptapJsonToText = (node: any): string => {
-        if (!node) return '';
-        if (node.type === 'text' && node.text) {
-            return node.text;
-        }
-        if (node.content && Array.isArray(node.content)) {
-            // Join paragraphs with double newline, other nodes with single
-            return node.content.map(tiptapJsonToText).join(node.type === 'doc' ? '\n\n' : '');
-        }
-        return '';
-    };
-
     const docText = tiptapJsonToText(doc.content).trim();
     if (!docText) {
         return "Error: The document is empty. Please add some content to use as context.";
@@ -597,6 +625,123 @@ const App: React.FC = () => {
 
     const variables = { [prompt.contextVariableName]: docText };
     return handleRunPrompt(prompt.promptText, variables);
+  };
+  
+  const handleCloseSearchModal = () => {
+    setIsSearchModalOpen(false);
+    chatSessionRef.current = null; // Reset chat on close
+  };
+
+  // Intelligence Layer: Global Search Handler
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) {
+        setIsSearching(false);
+        setSearchResults([]);
+        setSynthesizedAnswer('');
+        return;
+    }
+
+    setIsSearching(true);
+    setSynthesizedAnswer('');
+    setSearchResults([]);
+
+    const currentRequestId = ++searchRequestController.current;
+
+    // 1. Client-side search and ranking
+    const allItems: SearchableEntity[] = [
+        ...tasks.map(t => ({ ...t, entityType: 'task' as const, title: t.title })),
+        ...docs.map(d => ({ ...d, entityType: 'doc' as const, title: d.title })),
+        ...projects.map(p => ({ ...p, entityType: 'project' as const, title: p.name })),
+    ];
+    
+    const lowerQuery = query.toLowerCase();
+    const rankedResults = allItems.map(item => {
+        let score = 0;
+        const content = item.entityType === 'doc' ? tiptapJsonToText(item.content) : item.description;
+
+        if (item.title?.toLowerCase().includes(lowerQuery)) score += 10;
+        if (content?.toLowerCase().includes(lowerQuery)) score += 5;
+        
+        return { item, score };
+    })
+    .filter(res => res.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+    const topResults = rankedResults.slice(0, 10).map(r => r.item);
+    
+    if (currentRequestId !== searchRequestController.current) return;
+    setSearchResults(topResults);
+
+    if (topResults.length === 0) {
+        setIsSearching(false);
+        setSynthesizedAnswer("I couldn't find any results matching your query.");
+        return;
+    }
+
+    // 2. Prepare and TRUNCATE context for Gemini to prevent errors
+    const context = topResults.map(item => {
+        const content = (item.entityType === 'doc' ? tiptapJsonToText(item.content) : item.description) || '';
+        const truncatedContent = content.length > 500 ? content.substring(0, 500) + '...' : content;
+
+        let details = `Type: ${item.entityType}\nTitle: ${item.title}\n`;
+        if (item.entityType === 'task') {
+            details += `Status: ${item.status}\n`;
+            if (item.startDate) details += `Start Date: ${item.startDate.toLocaleDateString()}\n`;
+            if (item.dueDate) details += `Due Date: ${item.dueDate.toLocaleDateString()}\n`;
+        }
+        details += `Content: ${truncatedContent || 'N/A'}\n`;
+        return details;
+    }).join('---\n');
+    
+    const message = `
+User Query: "${query}"
+
+Search Results Context:
+${context}
+`;
+
+    // 3. Call Gemini for synthesis using a persistent Chat session
+    try {
+        if (!aiRef.current) {
+            throw new Error("AI client not initialized. Make sure API_KEY is set.");
+        }
+
+        if (!chatSessionRef.current) {
+// FIX: The 'systemInstruction' property must be nested inside a 'config' object.
+             chatSessionRef.current = aiRef.current.chats.create({
+              model: 'gemini-2.5-flash',
+              config: {
+                systemInstruction: 'You are an AI assistant in a project management tool called Weaver. Your goal is to help the user understand their search results. Analyze the user\'s query and the provided search results context to provide a concise, natural language answer. If the context doesn\'t answer the query, summarize what was found. Respond in markdown.',
+              }
+            });
+        }
+        
+        const responseStream = await chatSessionRef.current.sendMessageStream({ message: message });
+
+        let fullText = '';
+        for await (const chunk of responseStream) {
+            if (currentRequestId !== searchRequestController.current) {
+                return;
+            }
+            fullText += chunk.text;
+            setSynthesizedAnswer(fullText);
+        }
+    } catch (error: any) {
+        if (currentRequestId !== searchRequestController.current) {
+            return;
+        }
+        console.error("Error calling Gemini for search synthesis:", error);
+        let errorMessage = "Sorry, I encountered an error trying to summarize the results.";
+        const errorString = error.toString();
+        if (errorString.includes('429') || errorString.includes('RESOURCE_EXHAUSTED')) {
+            errorMessage = "The AI is a bit busy right now. Please try again in a moment.";
+        }
+        setSynthesizedAnswer(errorMessage);
+    } finally {
+        if (currentRequestId === searchRequestController.current) {
+            setIsSearching(false);
+        }
+    }
   };
 
 
@@ -694,307 +839,196 @@ const App: React.FC = () => {
     }
     if (type === 'customField') {
         const def = customFieldDefinitions.find(d => d.id === id);
-        return { title: 'Delete Custom Field?', message: `Are you sure you want to delete the field "${def?.name}"? All data entered for this field on all tasks will be lost.` };
+        return { title: 'Delete Custom Field?', message: `Are you sure you want to delete the custom field "${def?.name}"? All values associated with this field will be permanently removed.` };
     }
     if (type === 'prompt') {
-        const prompt = prompts.find(p => p.id === id);
-        return { title: 'Delete Prompt?', message: `Are you sure you want to delete the prompt "${prompt?.name}"? This action cannot be undone.` };
+      const prompt = prompts.find(p => p.id === id);
+      return { title: 'Delete Prompt?', message: `Are you sure you want to delete the prompt "${prompt?.name}"? This action cannot be undone.` };
     }
     return { title: '', message: '' };
   };
 
-  const handleToggleTableColumn = (key: string) => {
-    setVisibleTableColumns(prev => 
-      prev.includes(key) ? prev.filter(c => c !== key) : [...prev, key]
-    );
-  };
+  const handleSelectSearchResult = (item: SearchableEntity) => {
+    setIsSearchModalOpen(false);
+    setActiveMainView('workspace');
 
-  // Mind Map Handlers
-  const handleSaveMindMap = (projectId: string, mindMapData: any) => {
-    setProjects(projects => projects.map(p => 
-        p.id === projectId ? { ...p, mindMapData, updatedAt: new Date() } : p
-    ));
-  };
-
-  const handleConvertMindMapToTasks = (projectId: string, mindMapData: any) => {
-      const project = projects.find(p => p.id === projectId);
-      if (!project || !mindMapData) return;
-
-      const { nodes, edges } = mindMapData;
-      if (!nodes || nodes.length === 0) return;
-
-      const newTasks: Task[] = [];
-      
-      const nodesMap = new Map(nodes.map((n: any) => [n.id, n]));
-      const allTargetIds = new Set(edges.map((e: any) => e.target));
-      const rootMindMapNodes = nodes.filter((n: any) => !allTargetIds.has(n.id));
-
-      const traverseAndCreate = (node: any, parentTaskId: string | null) => {
-          const newTask: Task = {
-              id: crypto.randomUUID(),
-              projectId,
-              parentTaskId,
-              title: node.data.label,
-              description: '',
-              status: Status.Todo,
-              startDate: null,
-              dueDate: null,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-          };
-          newTasks.push(newTask);
-
-          const childrenEdges = edges.filter((e: any) => e.source === node.id);
-          for (const edge of childrenEdges) {
-              const childNode = nodesMap.get(edge.target);
-              if (childNode) {
-                  traverseAndCreate(childNode, newTask.id);
-              }
-          }
-      };
-
-      for (const rootNode of rootMindMapNodes) {
-          traverseAndCreate(rootNode, null);
-      }
-      
-      if (newTasks.length > 0) {
-        setTasks(prevTasks => [...prevTasks, ...newTasks]);
-        // Clear mind map after conversion
-        handleSaveMindMap(projectId, null); 
-        setActiveView('table');
-      }
-  };
-
-  // Orchestrator Handlers
-  const handleCreateWorkflow = () => {
-    const newWorkflow: Workflow = {
-        id: crypto.randomUUID(),
-        name: 'New Untitled Agent',
-        isActive: false,
-        definition: { nodes: [], edges: [] },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-    };
-    setWorkflows(prev => [newWorkflow, ...prev]);
-    return newWorkflow.id;
-  };
-  
-  const handleSaveWorkflow = (workflowId: string, name: string, definition: WorkflowDefinition) => {
-    setWorkflows(prev => prev.map(w =>
-        w.id === workflowId
-            ? { ...w, name, definition, updatedAt: new Date() }
-            : w
-    ));
-  };
-
-
-  const renderActiveView = () => {
-    switch(activeView) {
-      case 'table':
-        return <TaskTable 
-          tasks={flattenedSortedTasks} 
-          onEdit={handleOpenEditTaskModal} 
-          onDelete={handleDeleteTask}
-          onAddSubtask={handleOpenCreateSubtaskModal}
-          requestSort={requestSort}
-          sortConfig={sortConfig}
-          customFieldDefinitions={customFieldDefinitionsForProject}
-          customFieldValuesMap={customFieldValuesMap}
-          visibleColumns={visibleTableColumns}
-          onToggleColumn={handleToggleTableColumn}
-        />;
-      case 'kanban':
-        return <KanbanView
-          tasks={rootTasksForKanban}
-          onUpdateTaskStatus={handleUpdateTaskStatus}
-          customFieldDefinitions={customFieldDefinitionsForProject}
-          customFieldValues={customFieldValues}
-        />;
-      case 'timeline':
-        return <TimelineView tasks={tasksForSelectedProject} />;
-      case 'calendar':
-        return <CalendarView tasks={tasksForSelectedProject} />;
-      case 'mindmap':
-        return selectedProject ? <MindMapView
-            key={selectedProject.id}
-            project={selectedProject}
-            onSave={handleSaveMindMap}
-            onConvertToTasks={handleConvertMindMapToTasks}
-        /> : null;
-      case 'graph':
-        return <GraphView data={graphDataForSelectedProject} />;
-      default:
-        return null;
+    switch (item.entityType) {
+        case 'project':
+            handleSelectProject(item.id);
+            break;
+        case 'doc':
+            handleSelectDoc(item.id);
+            break;
+        case 'task':
+            const taskToOpen = tasks.find(t => t.id === item.id);
+            if (taskToOpen) {
+                setSelectedProjectId(taskToOpen.projectId);
+                setActiveContentType('tasks');
+                setActiveView('table');
+                handleOpenEditTaskModal(taskToOpen);
+            }
+            break;
     }
-  }
+  };
 
-  const renderMainContent = () => {
-    if (activeMainView === 'foundry') {
-        return (
-            <FoundryView
-                prompts={prompts}
-                selectedPrompt={selectedPrompt}
-                onSelectPrompt={setSelectedPromptId}
-                onCreatePrompt={handleCreatePrompt}
-                onSavePrompt={handleSavePrompt}
-                onDeletePrompt={handleDeletePrompt}
-                onRunPrompt={handleRunPrompt}
-            />
-        );
+  const renderWorkspaceView = () => {
+    if (!selectedProject) {
+      return (
+        <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white">No Project Selected</h2>
+            <p className="mt-2 text-gray-400">Select a project from the sidebar, or create a new one to get started.</p>
+          </div>
+        </main>
+      );
     }
     
-    if (activeMainView === 'orchestrator') {
-        return (
-            <OrchestratorView
-                workflows={workflows}
-                workflowRuns={workflowRuns}
-                stepExecutions={stepExecutions}
-                prompts={prompts}
-                projects={projects}
-                onCreateWorkflow={handleCreateWorkflow}
-                onSaveWorkflow={handleSaveWorkflow}
-            />
-        );
+    if (activeContentType === 'doc') {
+        if (activeDoc) {
+            return (
+                 <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+                    <DocEditor 
+                        doc={activeDoc} 
+                        prompts={prompts.filter(p => p.contextVariableName)}
+                        onSave={handleSaveDoc}
+                        onDelete={handleDeleteDoc}
+                        onExecutePrompt={handleExecutePromptInDoc}
+                    />
+                 </main>
+            )
+        }
+        return null;
     }
 
-    // Default to workspace view
     return (
-        <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
-        {selectedProject ? (
-          activeContentType === 'tasks' ? (
-              <>
-              <div className="flex-shrink-0">
-                  <div className="flex justify-between items-start">
-                  <div>
-                      <h2 className="text-gray-400 text-sm">{selectedSpace?.name || '...'}</h2>
-                      <div className="flex items-center gap-3">
-                      <h3 className="text-2xl font-bold text-white">{selectedProject.name}</h3>
-                      <button onClick={() => setIsProjectSettingsModalOpen(true)} className="text-gray-400 hover:text-white transition-colors" aria-label="Project Settings">
-                          <Cog6ToothIcon />
-                      </button>
-                      </div>
-                      <p className="text-gray-400 mt-1">{selectedProject.description}</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                      <div className="flex items-center bg-gray-800 p-1 rounded-lg">
-                        <button onClick={() => setActiveView('table')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'table' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'table'} aria-label="Table View" ><TableCellsIcon /></button>
-                        <button onClick={() => setActiveView('kanban')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'kanban' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'kanban'} aria-label="Kanban View" ><ViewColumnsIcon /></button>
-                        <button onClick={() => setActiveView('timeline')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'timeline' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'timeline'} aria-label="Timeline View" ><ChartBarIcon /></button>
-                        <button onClick={() => setActiveView('calendar')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'calendar'} aria-label="Calendar View" ><CalendarDaysIcon /></button>
-                        <button onClick={() => setActiveView('mindmap')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'mindmap' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'mindmap'} aria-label="Mind Map View" ><ShareIcon /></button>
-                        <button onClick={() => setActiveView('graph')} className={`p-2 rounded-md text-sm font-medium transition-colors ${activeView === 'graph' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`} aria-pressed={activeView === 'graph'} aria-label="Graph View" ><ChartPieIcon /></button>
-                      </div>
-                      <div className="relative">
-                          <button
-                              onClick={() => setIsCreateMenuOpen(prev => !prev)}
-                              className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                              disabled={!selectedProject}
-                              aria-haspopup="true"
-                              aria-expanded={isCreateMenuOpen}
-                          >
-                              <PlusIcon className="w-5 h-5" />
-                              <span>Create</span>
-                          </button>
-                          {isCreateMenuOpen && (
-                              <div ref={createMenuRef} className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20">
-                                  <ul className="p-2 space-y-1">
-                                      <li>
-                                          <button
-                                              onClick={() => { handleOpenCreateTaskModal(); setIsCreateMenuOpen(false); }}
-                                              className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors"
-                                          >
-                                              <TableCellsIcon className="w-4 h-4" />
-                                              <span>New Task</span>
-                                          </button>
-                                      </li>
-                                      <li>
-                                          <button
-                                              onClick={() => { if (selectedProjectId) { handleCreateDoc(selectedProjectId); } setIsCreateMenuOpen(false); }}
-                                              className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors"
-                                          >
-                                              <DocumentTextIcon className="w-4 h-4" />
-                                              <span>New Document</span>
-                                          </button>
-                                      </li>
-                                  </ul>
-                              </div>
-                          )}
-                      </div>
-                  </div>
-                  </div>
-              </div>
-              {renderActiveView()}
-              </>
-          ) : activeDoc ? (
-              <DocEditor
-                  key={activeDoc.id}
-                  doc={activeDoc}
-                  prompts={prompts.filter(p => p.contextVariableName)} // Only pass prompts usable in docs
-                  onSave={handleSaveDoc}
-                  onDelete={handleDeleteDoc}
-                  onExecutePrompt={handleExecutePromptInDoc}
-               />
-          ) : null
-        ) : (
-          <div className="flex-grow flex items-center justify-center bg-gray-800/50 border border-gray-700 rounded-lg">
-              <div className="text-center">
-                  <h2 className="text-xl font-semibold text-white">No Project Selected</h2>
-                  <p className="text-gray-400 mt-2">Select a project from the sidebar, or create a new one to get started.</p>
-              </div>
-          </div>
-        )}
+      <main className="w-2/3 lg:w-3/4 xl:w-4/5 flex flex-col gap-6 overflow-hidden">
+        {/* Project Header */}
+        <header className="flex-shrink-0">
+            <div className="flex justify-between items-center">
+                <div>
+                    <div className="text-sm text-gray-400">{selectedSpace?.name} /</div>
+                    <h1 className="text-3xl font-bold text-white">{selectedProject.name}</h1>
+                </div>
+                 <div className="flex items-center space-x-2">
+                    <GlobalSearchBar onClick={() => setIsSearchModalOpen(true)} />
+                    <button onClick={() => setIsProjectSettingsModalOpen(true)} className="p-2 rounded-md hover:bg-gray-700 transition-colors"><Cog6ToothIcon /></button>
+                </div>
+            </div>
+
+            {/* View switcher */}
+            <div className="mt-4 flex items-center justify-between">
+                <div className="flex items-center bg-gray-800/50 p-1 rounded-lg">
+                    <button onClick={() => setActiveView('table')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'table' ? 'bg-indigo-600' : ''}`}><TableCellsIcon /> Table</button>
+                    <button onClick={() => setActiveView('kanban')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'kanban' ? 'bg-indigo-600' : ''}`}><ViewColumnsIcon /> Board</button>
+                    <button onClick={() => setActiveView('timeline')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'timeline' ? 'bg-indigo-600' : ''}`}><ChartBarIcon /> Timeline</button>
+                    <button onClick={() => setActiveView('calendar')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'calendar' ? 'bg-indigo-600' : ''}`}><CalendarDaysIcon /> Calendar</button>
+                    <button onClick={() => setActiveView('mindmap')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'mindmap' ? 'bg-indigo-600' : ''}`}><ShareIcon /> Mind Map</button>
+                    <button onClick={() => setActiveView('graph')} className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ${activeView === 'graph' ? 'bg-indigo-600' : ''}`}><ChartPieIcon /> Graph</button>
+                </div>
+                
+                 <div className="relative" ref={createMenuRef}>
+                    <button
+                        onClick={() => setIsCreateMenuOpen(prev => !prev)}
+                        className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg"
+                    >
+                        <PlusIcon />
+                        <span>Create</span>
+                    </button>
+                    {isCreateMenuOpen && (
+                        <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20">
+                            <button onClick={() => { handleOpenCreateTaskModal(); setIsCreateMenuOpen(false); }} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"><TableCellsIcon /> New Task</button>
+                            <button onClick={() => { if(selectedProjectId) { handleCreateDoc(selectedProjectId); setIsCreateMenuOpen(false);} }} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"><DocumentTextIcon /> New Document</button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </header>
+
+        {/* Content View */}
+        {activeView === 'table' && <TaskTable tasks={flattenedSortedTasks} onEdit={handleOpenEditTaskModal} onDelete={handleDeleteTask} onAddSubtask={handleOpenCreateSubtaskModal} requestSort={requestSort} sortConfig={sortConfig} customFieldDefinitions={customFieldDefinitionsForProject} customFieldValuesMap={customFieldValuesMap} visibleColumns={visibleTableColumns} onToggleColumn={(key) => setVisibleTableColumns(cols => cols.includes(key) ? cols.filter(c => c !== key) : [...cols, key])}/>}
+        {activeView === 'kanban' && <KanbanView tasks={rootTasksForKanban} onUpdateTaskStatus={handleUpdateTaskStatus} customFieldDefinitions={customFieldDefinitionsForProject} customFieldValues={customFieldValues} />}
+        {activeView === 'timeline' && <TimelineView tasks={tasksForSelectedProject} />}
+        {activeView === 'calendar' && <CalendarView tasks={tasksForSelectedProject} />}
+        {activeView === 'mindmap' && <MindMapView project={selectedProject} onSave={(id, data) => setProjects(ps => ps.map(p => p.id === id ? {...p, mindMapData: data} : p))} onConvertToTasks={() => {}} />}
+        {activeView === 'graph' && <GraphView data={graphDataForSelectedProject} />}
+
       </main>
     );
-  }
+  };
+
+  const renderMainView = () => {
+    switch (activeMainView) {
+        case 'foundry':
+            return (
+                <FoundryView
+                    prompts={prompts}
+                    selectedPrompt={selectedPrompt}
+                    onSelectPrompt={setSelectedPromptId}
+                    onCreatePrompt={handleCreatePrompt}
+                    onSavePrompt={handleSavePrompt}
+                    onDeletePrompt={handleDeletePrompt}
+                    onRunPrompt={handleRunPrompt}
+                />
+            );
+        case 'orchestrator':
+             return (
+                <OrchestratorView
+                    workflows={workflows}
+                    workflowRuns={workflowRuns}
+                    stepExecutions={stepExecutions}
+                    prompts={prompts}
+                    projects={projects}
+                    onCreateWorkflow={() => {
+                      const newWorkflow: Workflow = {
+                        id: crypto.randomUUID(),
+                        name: 'New Untitled Agent',
+                        isActive: false,
+                        definition: { nodes: [], edges: [] },
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                      };
+                      setWorkflows(prev => [newWorkflow, ...prev]);
+                      return newWorkflow.id;
+                    }}
+                    onSaveWorkflow={(id, name, def) => {
+                      setWorkflows(wfs => wfs.map(w => w.id === id ? {...w, name, definition: def, updatedAt: new Date()} : w));
+                    }}
+                />
+            );
+        case 'workspace':
+        default:
+            return renderWorkspaceView();
+    }
+  };
 
   return (
-    <div className="h-screen bg-gray-900 text-gray-100 flex flex-col overflow-hidden">
-      <header className="p-4 sm:p-6 lg:p-8 border-b border-gray-700/50">
-          <h1 className="text-2xl font-bold text-white">Weaver</h1>
-          <p className="text-sm text-gray-400">The Cognitive Work OS</p>
-      </header>
-      
-      <div className="flex-grow flex p-4 sm:p-6 lg:p-8 gap-6 overflow-hidden">
-        <aside className="w-1/3 lg:w-1/4 xl:w-1/5 flex flex-col">
-          <NavigationSidebar
-            spaces={spaces}
-            projects={projects}
-            docs={docs}
-            selectedProjectId={selectedProjectId}
-            activeContentType={activeContentType}
-            activeDocId={activeDocId}
-            activeMainView={activeMainView}
-            onSelectProject={handleSelectProject}
-            onSelectDoc={handleSelectDoc}
-            onSetActiveMainView={setActiveMainView}
-            onCreateSpace={handleOpenCreateSpaceModal}
-            onEditSpace={handleOpenEditSpaceModal}
-            onDeleteSpace={handleDeleteSpace}
-            onCreateProject={handleOpenCreateProjectModal}
-            onEditProject={handleOpenEditProjectModal}
-            onDeleteProject={handleDeleteProject}
-            onCreateDoc={handleCreateDoc}
-            onDeleteDoc={handleDeleteDoc}
-          />
-        </aside>
-
-        {renderMainContent()}
+    <div className="h-screen w-screen bg-gray-900 text-gray-100 flex p-4 gap-4 font-sans">
+      <div className="w-1/3 lg:w-1/4 xl:w-1/5 flex-shrink-0">
+        <NavigationSidebar
+          spaces={spaces}
+          projects={projects}
+          docs={docs}
+          selectedProjectId={selectedProjectId}
+          activeContentType={activeContentType}
+          activeDocId={activeDocId}
+          activeMainView={activeMainView}
+          onSelectProject={handleSelectProject}
+          onSelectDoc={handleSelectDoc}
+          onSetActiveMainView={setActiveMainView}
+          onCreateSpace={handleOpenCreateSpaceModal}
+          onEditSpace={handleOpenEditSpaceModal}
+          onDeleteSpace={handleDeleteSpace}
+          onCreateProject={handleOpenCreateProjectModal}
+          onEditProject={handleOpenEditProjectModal}
+          onDeleteProject={handleDeleteProject}
+          onCreateDoc={handleCreateDoc}
+          onDeleteDoc={handleDeleteDoc}
+        />
       </div>
 
-      <SpaceFormModal
-        isOpen={isSpaceModalOpen}
-        onClose={handleCloseSpaceModal}
-        onSave={handleSaveSpace}
-        spaceToEdit={spaceToEdit}
-      />
-
-      <ProjectFormModal 
-        isOpen={isProjectModalOpen}
-        onClose={handleCloseProjectModal}
-        onSave={handleSaveProject}
-        projectToEdit={projectToEdit}
-      />
-
+      {renderMainView()}
+      
+      {/* Modals */}
       <TaskFormModal
         isOpen={isTaskModalOpen}
         onClose={handleCloseTaskModal}
@@ -1002,13 +1036,34 @@ const App: React.FC = () => {
         taskToEdit={taskToEdit}
         customFieldDefinitions={customFieldDefinitionsForProject}
         initialCustomFieldValues={
-          taskToEdit ? 
-          customFieldValues.filter(v => v.taskId === taskToEdit.id)
-            .reduce((acc, curr) => ({...acc, [curr.fieldDefinitionId]: curr.value }), {})
-          : {}
+          taskToEdit
+            ? customFieldDefinitionsForProject.reduce((acc, def) => {
+                acc[def.id] = customFieldValuesMap.get(`${taskToEdit?.id}-${def.id}`) ?? '';
+                return acc;
+            }, {} as {[key: string]: any})
+            : {}
         }
       />
-
+      <ProjectFormModal 
+        isOpen={isProjectModalOpen}
+        onClose={handleCloseProjectModal}
+        onSave={handleSaveProject}
+        projectToEdit={projectToEdit}
+      />
+      <SpaceFormModal
+        isOpen={isSpaceModalOpen}
+        onClose={handleCloseSpaceModal}
+        onSave={handleSaveSpace}
+        spaceToEdit={spaceToEdit}
+      />
+       <ProjectSettingsModal 
+        isOpen={isProjectSettingsModalOpen}
+        onClose={() => setIsProjectSettingsModalOpen(false)}
+        project={selectedProject}
+        customFieldDefinitions={customFieldDefinitionsForProject}
+        onSaveDefinition={handleSaveCustomFieldDefinition}
+        onDeleteDefinition={handleDeleteCustomFieldDefinition}
+       />
       <ConfirmationModal
         isOpen={isConfirmModalOpen}
         onClose={closeConfirmModal}
@@ -1016,15 +1071,16 @@ const App: React.FC = () => {
         title={getConfirmModalContent().title}
         message={getConfirmModalContent().message}
       />
-
-      <ProjectSettingsModal
-        isOpen={isProjectSettingsModalOpen}
-        onClose={() => setIsProjectSettingsModalOpen(false)}
-        project={selectedProject}
-        customFieldDefinitions={customFieldDefinitionsForProject}
-        onSaveDefinition={handleSaveCustomFieldDefinition}
-        onDeleteDefinition={handleDeleteCustomFieldDefinition}
+      <SearchResultsModal
+        isOpen={isSearchModalOpen}
+        onClose={handleCloseSearchModal}
+        onSearch={handleSearch}
+        isSearching={isSearching}
+        synthesizedAnswer={synthesizedAnswer}
+        results={searchResults}
+        onResultClick={handleSelectSearchResult}
       />
+
     </div>
   );
 };
